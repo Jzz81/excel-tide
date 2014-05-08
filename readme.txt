@@ -5,6 +5,12 @@ windows.
 Changelog
 ==========
 *****
+Issue 04:
+Lock the 'VAARPLAN' worksheet, and unlock only the cells which requires input. That way, the user can 'tab' their way through the input cells, improving the usability. No password will be set for the worksheet.
+Source:
+Request by client
+
+*****
 Issue 03:
 Add checkbox for 'vessel underway' (reis onderweg) on the 'VAARPLAN' sheet. Checking this box will change the color of the ship's name and IMO number to visualize.
 Source:
