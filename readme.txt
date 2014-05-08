@@ -4,6 +4,13 @@ windows.
 ==========
 Changelog
 ==========
+*****
+Issue 03:
+Add checkbox for 'vessel underway' (reis onderweg) on the 'VAARPLAN' sheet. Checking this box will change the color of the ship's name and IMO number to visualize.
+Source:
+Request by client
+Additional:
+-updated routes and waypoints to those in use by client.
 
 *****
 Issue 02:
