@@ -6,6 +6,16 @@ Changelog
 ==========
 
 *****
+Issue 02:
+Adapt the 'finaliseer reis' routine to save the workbook when finished.
+Source:
+Request by client
+Additional:
+-updated routes and waypoints to those in use by client.
+-changed a header in the 'Waypoints' sheet from 'Waterdiepte' to 'Drempeldiepte'
+
+
+*****
 Issue 01:
 Adapt the dropdown menu in the worksheet to show entries sorted alphabetically.
 Source:
