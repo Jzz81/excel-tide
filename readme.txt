@@ -9,6 +9,8 @@ Issue 04:
 Lock the 'VAARPLAN' worksheet, and unlock only the cells which requires input. That way, the user can 'tab' their way through the input cells, improving the usability. No password will be set for the worksheet.
 Source:
 Request by client
+Additional:
+Discarded IMO number as input parameter (also in Finalize form).
 
 *****
 Issue 03:
