@@ -5,6 +5,12 @@ windows.
 Changelog
 ==========
 *****
+Issue 05:
+Visualize that the vessel is over 340 meters in lenght, by coloring the text in the LOA cell and Ships name cell red.
+Source:
+Request by client
+
+*****
 Issue 04:
 Lock the 'VAARPLAN' worksheet, and unlock only the cells which requires input. That way, the user can 'tab' their way through the input cells, improving the usability. No password will be set for the worksheet.
 Source:
