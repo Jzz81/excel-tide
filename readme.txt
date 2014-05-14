@@ -5,6 +5,12 @@ windows.
 Changelog
 ==========
 *****
+Issue 06:
+Visualize which vessels are ingoing and which are outgoing, by filling in the cell left of the Ships' name to "Opvarend schip:" (ingoing) or "Afvarend schip:" (outgoint, and set different colors for both.
+Source:
+Request by client
+
+*****
 Issue 05:
 Visualize that the vessel is over 340 meters in lenght, by coloring the text in the LOA cell and Ships name cell red.
 Source:
