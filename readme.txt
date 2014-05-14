@@ -9,6 +9,8 @@ Issue 06:
 Visualize which vessels are ingoing and which are outgoing, by filling in the cell left of the Ships' name to "Opvarend schip:" (ingoing) or "Afvarend schip:" (outgoint, and set different colors for both.
 Source:
 Request by client
+Additional:
+Added 'client data transfer' routine, to streamline the data transfer process
 
 *****
 Issue 05:
