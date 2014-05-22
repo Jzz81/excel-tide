@@ -5,6 +5,11 @@ windows.
 Changelog
 ==========
 *****
+Issue 07:
+Add ranges in the VAARPLAN sheet that hold ATA's on several points.
+Source:
+Request by client
+*****
 Issue 06:
 Visualize which vessels are ingoing and which are outgoing, by filling in the cell left of the Ships' name to "Opvarend schip:" (ingoing) or "Afvarend schip:" (outgoint, and set different colors for both.
 Source:
