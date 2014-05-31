@@ -5,6 +5,13 @@ windows.
 Changelog
 ==========
 *****
+Issue 08:
+Bugfix in finalize procedure. If ship has RTA, but no ETA, finalize failed, but no warning given. Added 'finalization failed' message, and fixed RTA date input for statistics.
+Source:
+Bug (noted by client)
+Additional:
+Updated data to those in use by client
+*****
 Issue 07:
 Add ranges in the VAARPLAN sheet that hold ATA's on several points.
 Source:
