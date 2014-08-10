@@ -5,6 +5,14 @@ windows.
 Changelog
 ==========
 *****
+Issue 09:
+Additions in finalize procedure. No yes or no preset, so choice is made explicit by user. File is closed if finalize procedure is ended.
+Source:
+Request from client
+Additional:
+Added 'revision date' column in the waypoints sheet, to indicate revision date of treshold depth.
+Updated data to those in use by client
+*****
 Issue 08:
 Bugfix in finalize procedure. If ship has RTA, but no ETA, finalize failed, but no warning given. Added 'finalization failed' message, and fixed RTA date input for statistics.
 Source:
