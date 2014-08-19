@@ -5,6 +5,14 @@ windows.
 Changelog
 ==========
 *****
+Issue 10:
+Bugfix. When changing the RTA treshold, the program would crash if there is a calculation in place.
+Source:
+bug (noted by client)
+Additional:
+-Added errorhandling to the routine, so program will no longer crash in such an event.
+-updated data to those in use by client
+*****
 Issue 09:
 Additions in finalize procedure. No yes or no preset, so choice is made explicit by user. File is closed if finalize procedure is ended.
 Source:
