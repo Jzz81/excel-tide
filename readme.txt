@@ -4,7 +4,15 @@ windows.
 ==========
 Changelog
 ==========
-*****
+Version 4 will host a central program and data base, opposite to the program and data base for each sail plan of the previous versions.
+*database will load from the access database each time the program opens and keep the sqlite database in memory as long as the program is open
+*All input is to be done using userforms (with the exemption of some data alterations that are permitted from the sail plan list)
+*All output (overview list and calculated data presentation) is done in one Excel file (that holds the code base as well)
+*All data storage is done in Access database (treshold data, route data, connection data, ship data, sail plan data, etc)
+
+===============================================================================
+Version_4
+===============================================================================
 Issue 10:
 Bugfix. When changing the RTA treshold, the program would crash if there is a calculation in place.
 Source:
