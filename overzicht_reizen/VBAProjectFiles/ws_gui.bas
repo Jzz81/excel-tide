@@ -367,7 +367,7 @@ With sh
     Do Until rst.EOF
         .Cells(rw, 9) = rst!treshold_name
         .Cells(rw, 10) = rst!treshold_depth
-        .Cells(rw, 11) = Round(rst!ukc, 1) & " (" & rst!UKC_value & rst!ukc_unit & ")"
+        .Cells(rw, 11) = Round(rst!ukc, 1) & " (" & rst!UKC_value & rst!UKC_unit & ")"
         .Cells(rw, 12) = rst!deviation
         d = (rst!treshold_depth + rst!deviation - rst!ukc - rst!ship_draught)
         If d < 0 Then
@@ -522,7 +522,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
-Public Sub draw_path_line(draw_bottom As Double, start_frame As Date, ETA0 As Date, ETA1 As Date, d0 As Double, D1 As Double, Optional Blue As Boolean)
+Public Sub draw_path_line(draw_bottom As Double, start_frame As Date, ETA0 As Date, ETA1 As Date, d0 As Double, d1 As Double, Optional Blue As Boolean)
 'draws a line that represents the ship's speed
 Dim X1 As Double
 Dim X2 As Double
@@ -530,7 +530,7 @@ Dim Y1 As Double
 Dim Y2 As Double
 
 X1 = d0 * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
-X2 = D1 * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
+X2 = d1 * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 Y1 = draw_bottom - (ETA0 - start_frame) * SAIL_PLAN_DAY_LENGTH
 Y2 = draw_bottom - (ETA1 - start_frame) * SAIL_PLAN_DAY_LENGTH
 

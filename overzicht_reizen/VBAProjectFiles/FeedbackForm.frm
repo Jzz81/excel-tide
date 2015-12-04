@@ -18,8 +18,8 @@ Attribute VB_Exposed = False
 
 
 Option Explicit
-Public CancelFlag As Boolean
+Public Cancelflag As Boolean
 
 Private Sub CancelBTN_Click()
-CancelFlag = True
+Cancelflag = True
 End Sub

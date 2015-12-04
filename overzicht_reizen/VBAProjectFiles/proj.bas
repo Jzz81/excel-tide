@@ -216,12 +216,12 @@ Loop
 
 
 End Sub
-Private Function interpolate_date_based_on_draught(d0 As Date, D1 As Date, r0 As Double, r1 As Double, needed_rise As Double) As Date
+Private Function interpolate_date_based_on_draught(d0 As Date, d1 As Date, r0 As Double, r1 As Double, needed_rise As Double) As Date
 'returns the interpolated date based on the needed_rise
 If d0 = 0 Or r0 = 0 Then
-    interpolate_date_based_on_draught = D1
+    interpolate_date_based_on_draught = d1
 Else
-    interpolate_date_based_on_draught = d0 + (((D1 - d0) * (needed_rise - r0)) / (r1 - r0))
+    interpolate_date_based_on_draught = d0 + (((d1 - d0) * (needed_rise - r0)) / (r1 - r0))
 End If
 
 End Function
@@ -461,10 +461,6 @@ Next i
 check_tidal_window = True
 
 End Function
-Sub jzz()
-Call sail_plan_edit_plan(334)
-
-End Sub
 Public Sub sail_plan_edit_plan(id As Long)
 'load the sail plan form and load data for the selected sail plan
 Dim rst As ADODB.Recordset
@@ -502,17 +498,63 @@ With sail_plan_edit_form
     .routes_cb.Value = rst!route_naam
     .window_pre_tb = Format(rst!min_tidal_window_pre, "hh:nn")
     .window_after_tb = Format(rst!min_tidal_window_after, "hh:nn")
-    .eta_date_tb = Format(rst!local_eta, "dd-mm-yyyy")
-    .eta_time_tb = Format(rst!local_eta, "hh:nn")
-    If Not IsNull(rst!rta) Then
-        'rta is in force
-        .rta_ob = True
-    End If
-    
+    .eta_date_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "dd-mm-yyyy")
+    .eta_time_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "hh:nn")
+    'loop all tresholds to fill route_lb and check for
+    'current window or rta
+    Do Until rst.EOF
+        If rst!current_window Then
+            'current window is in force
+            .current_ob = True
+            'positive value is after the hw, negative is before
+            .current_after_tb = Format(rst!current_window_after, "hh:nn")
+            If rst!current_window_after_positive Then
+                .current_after_cb.Value = "na"
+            Else
+                .current_after_cb.Value = "voor"
+            End If
+            .current_before_tb = Format(rst!current_window_pre, "hh:nn")
+            If rst!current_window_pre_positive Then
+                .current_before_cb.Value = "na"
+            Else
+                .current_before_cb.Value = "voor"
+            End If
+            .current_tresholds_cb.Value = rst!treshold_name
+            .hw_list_cb.Value = rst!current_window_data_point
+        End If
+        If rst!rta_treshold Then
+            'rta is in force
+            .rta_ob = True
+            .rta_date_tb = Format(DST_GMT.ConvertToLT(rst!rta), "d-m-yyyy")
+            .rta_time_tb = Format(DST_GMT.ConvertToLT(rst!rta), "hh:nn")
+            .rta_tresholds_cb.Value = rst!treshold_name
+        End If
+        .route_lb.List(rst!treshold_index * 2, 1) = rst!UKC_value & rst!UKC_unit
+        .route_lb.List(rst!treshold_index * 2, 4) = Format(rst!min_tidal_window_after, "hh:nn")
+        .route_lb.List(rst!treshold_index * 2, 5) = Format(rst!min_tidal_window_pre, "hh:nn")
+        If rst!treshold_index > 0 Then
+            .route_lb.List(rst!treshold_index * 2 - 1, 2) = ado_db.get_table_name_from_id(rst!ship_speed_id, "speeds")
+            .route_lb.List(rst!treshold_index * 2 - 1, 3) = rst!distance_to_here
+        End If
+        
+        rst.MoveNext
+    Loop
+    .show
 End With
-rst.Delete
+
 rst.Close
 Set rst = Nothing
+
+'remove the sail plan from the database, but only if cancel is not clicked.
+If Not aux.form_is_loaded("sail_plan") Then
+    'remove
+    conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+    'update gui
+    Call ws_gui.build_sail_plan_list
+Else
+    'form is still loaded (hidden). Unload.
+    Unload sail_plan_edit_form
+End If
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -622,6 +664,14 @@ rst.Close
 Set rst = Nothing
 
 'get hw tables:
+'first check if there is an sqlite database loaded in memory:
+If Not sql_db.check_sqlite_db_is_loaded Then
+    MsgBox "De database is niet ingeladen. Kan het formulier niet laden.", Buttons:=vbCritical
+    'release db lock
+    Call ado_db.disconnect_ADO
+    'end completely (critical)
+    End
+End If
 'construct query
 qstr = "SELECT name FROM sqlite_master WHERE type='table';"
 'execute query
@@ -637,6 +687,8 @@ Do While ret = SQLITE_ROW
 Loop
 
 If show Then sail_plan_edit_form.show
+
+endsub:
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -704,6 +756,8 @@ Dim min_tidal_window_pre As Date
 Dim min_tidal_window_after As Date
 Dim sp_id As Long
 Dim speed_id As Long
+Dim d1 As Date
+Dim d2 As Date
 
 Dim speeds() As Double
 Dim tidal_data_point As String
@@ -725,6 +779,33 @@ With sail_plan_edit_form
         MsgBox "Eta is niet ingevuld!", vbExclamation
         Exit Sub
     End If
+    If .current_ob Then
+        'construct dates to validate
+        eta = Date
+        If .current_before_cb = "na" Then
+            d1 = eta + CDate(.current_before_tb)
+        Else
+            d1 = eta - CDate(.current_before_tb)
+        End If
+        If .current_after_cb = "na" Then
+            d2 = eta + CDate(.current_after_tb)
+        Else
+            d2 = eta - CDate(.current_after_tb)
+        End If
+        If d2 <= d1 Then
+            MsgBox "Stroompoortgegevens (tijden) zijn niet correct!", vbExclamation
+            Exit Sub
+        End If
+        If .current_tresholds_cb.ListIndex = -1 Then
+            MsgBox "Er is geen drempel geselecteerd voor de stroompoort!", vbExclamation
+            Exit Sub
+        End If
+        If .hw_list_cb.ListIndex = -1 Then
+            MsgBox "Er is geen hoogwater datapunt geselecteerd voor de stroompoort!", vbExclamation
+            Exit Sub
+        End If
+    End If
+        
     If conn Is Nothing Then
         Call ado_db.connect_ADO
         connect_here = True
@@ -773,7 +854,7 @@ With sail_plan_edit_form
         'UKC:
         'get treshold UKC value and unit from userform
         ukc = .route_lb.List(rst1!treshold_index * 2, 1)
-        rst3!ukc_unit = Right(ukc, 1)
+        rst3!UKC_unit = Right(ukc, 1)
         rst3!UKC_value = Left(ukc, Len(ukc) - 1)
         
         rst3!min_tidal_window_after = CDate(.route_lb.List(rst1!treshold_index * 2, 5))
@@ -810,7 +891,9 @@ With sail_plan_edit_form
         route_distance = route_distance + distance
         If rst1!treshold_index > 0 Then
             'insert eta and time on route
+            'use speed from previous line in the listbox always
             speed_id = ado_db.get_table_id_from_name(.route_lb.List(rst1!treshold_index * 2 - 1, 2), "speeds")
+            rst3!ship_speed_id = speed_id
             rst3!ship_speed = speeds(speed_id)
             rst3!time_to_here = TimeSerial(0, distance / rst3!ship_speed * 60, 0) + route_time
             rst3!local_eta = eta + rst3!time_to_here
@@ -828,10 +911,17 @@ With sail_plan_edit_form
                 rst3!rta = CDate(.rta_date_tb) + CDate(.rta_time_tb)
             End If
         ElseIf .current_ob Then
-            If rst3!treshold_name = .tresholds_cb.Value Then
+            If rst3!treshold_name = .current_tresholds_cb.Value Then
                 rst3!current_window = True
-                rst3!current_window_pre = CDate(.cw_before_tb)
+                'positive value is after the hw, negative is before
+                rst3!current_window_pre = CDate(.current_before_tb)
+                If .current_before_cb.Value = "na" Then
+                    rst3!current_window_pre_positive = True
+                End If
                 rst3!current_window_after = CDate(.current_after_tb)
+                If .current_after_cb.Value = "na" Then
+                    rst3!current_window_after_positive = True
+                End If
                 rst3!current_window_data_point = .hw_list_cb
             End If
         End If
@@ -960,8 +1050,16 @@ If ret = SQLITE_ROW Then
     Do While ret = SQLITE_ROW
         'Store Values:
         dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-        s = s & CDate(dt - rst!current_window_pre) & ","
-        s = s & CDate(dt + rst!current_window_after) & ";"
+        If rst!current_window_pre_positive Then
+            s = s & CDate(dt + rst!current_window_pre) & ","
+        Else
+            s = s & CDate(dt - rst!current_window_pre) & ","
+        End If
+        If rst!current_window_after_positive Then
+            s = s & CDate(dt + rst!current_window_after) & ";"
+        Else
+            s = s & CDate(dt - rst!current_window_after) & ";"
+        End If
         ret = Sqlite3.SQLite3Step(handl)
     Loop
     If Len(s) > 0 Then s = Left(s, Len(s) - 1)
@@ -1031,7 +1129,7 @@ rst.Open qstr
 
 Do Until rst.EOF
     rst!ship_draught = draught
-    If rst!ukc_unit = "m" Then
+    If rst!UKC_unit = "m" Then
         rst!ukc = rst!UKC_value * 10
     Else
         rst!ukc = rst!UKC_value * draught / 100
@@ -1148,7 +1246,7 @@ Dim s As String
 
 With sail_plan_edit_form
     .route_lb.Clear
-    .tresholds_cb.Clear
+    .current_tresholds_cb.Clear
     .rta_tresholds_cb.Clear
     
     If .routes_cb.ListIndex = -1 Then Exit Sub
@@ -1177,10 +1275,10 @@ With sail_plan_edit_form
         s = ado_db.get_table_name_from_id(rst!treshold_id, "tresholds")
         .route_lb.List(.route_lb.ListCount - 1, 0) = s
         'add name to the cbs
-        .tresholds_cb.AddItem s
+        .current_tresholds_cb.AddItem s
         .rta_tresholds_cb.AddItem s
         'UKC value and unit
-        .route_lb.List(.route_lb.ListCount - 1, 1) = rst!UKC_value & rst!ukc_unit
+        .route_lb.List(.route_lb.ListCount - 1, 1) = rst!UKC_value & rst!UKC_unit
         'required tidal window
         .route_lb.List(.route_lb.ListCount - 1, 4) = .window_after_tb.Value
         .route_lb.List(.route_lb.ListCount - 1, 5) = .window_pre_tb.Value
@@ -1572,7 +1670,7 @@ With routes_edit_form
             .List(i, 0) = _
                 ado_db.get_table_name_from_id(t_id, "tresholds")
             .List(i, 1) = rst!UKC_value
-            .List(i, 2) = rst!ukc_unit
+            .List(i, 2) = rst!UKC_unit
             .List(i, 3) = _
                 ado_db.get_table_name_from_id(rst!speed_id, "speeds")
             .List(i, 4) = rst!connection_id
@@ -1830,7 +1928,7 @@ With routes_edit_form
         rst!treshold_id = ado_db.get_table_id_from_name( _
             .tresholds_lb.List(i, 0), "tresholds")
         rst!UKC_value = CDbl(.tresholds_lb.List(i, 1))
-        rst!ukc_unit = .tresholds_lb.List(i, 2)
+        rst!UKC_unit = .tresholds_lb.List(i, 2)
         rst!speed_id = ado_db.get_table_id_from_name( _
             .tresholds_lb.List(i, 3), "speeds")
         rst!connection_id = .tresholds_lb.List(i, 4)

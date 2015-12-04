@@ -57,7 +57,7 @@ With FeedbackForm
     Call sql_db.copy_database_data(HW:=True)
 End With
 
-If FeedbackForm.CancelFlag Then
+If FeedbackForm.Cancelflag Then
     Call sql_db.close_memory_db
 End If
 
@@ -141,7 +141,7 @@ For i = 1 To c.Count
     End If
     DoEvents
     rst.Close
-    If FeedbackForm.CancelFlag Then Exit For
+    If FeedbackForm.Cancelflag Then Exit For
 Next i
 
 Set rst = Nothing
@@ -195,7 +195,7 @@ Do Until i >= i_max
     Sqlite3.SQLite3Step handl
     'should be 0
     Sqlite3.SQLite3Finalize handl
-    If FeedbackForm.CancelFlag Then Exit Do
+    If FeedbackForm.Cancelflag Then Exit Do
 Loop
 
 End Sub
@@ -249,7 +249,7 @@ Do Until i >= i_max
     Sqlite3.SQLite3Step handl
     'should be 0
     Sqlite3.SQLite3Finalize handl
-    If FeedbackForm.CancelFlag Then Exit Do
+    If FeedbackForm.Cancelflag Then Exit Do
 Loop
 
 End Sub
@@ -334,6 +334,12 @@ Call sql_db.initialize_SQLite
 RetVal = Sqlite3.SQLite3Close(sql_db.DB_HANDLE)
 sql_db.DB_HANDLE (True)
 End Sub
+Public Function check_sqlite_db_is_loaded() As Boolean
+'simple check
+    If sql_db.DB_HANDLE <> 0 Then
+        check_sqlite_db_is_loaded = True
+    End If
+End Function
 Public Function DB_HANDLE(Optional reset As Boolean = False, Optional open_new_db As Boolean = False) As Long
 Dim h As Long
 Dim RetVal As Long
@@ -353,6 +359,10 @@ ElseIf open_new_db Then
     ThisWorkbook.Sheets("data").Cells(1, 1).Value = h
     ThisWorkbook.Saved = True
     DB_HANDLE = ThisWorkbook.Sheets("data").Cells(1, 1).Value
+Else
+    'no db_handle and no new database. Initialize sqlite to prevent
+    'errors.
+    sql_db.initialize_SQLite
 End If
 
 End Function

@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} sail_plan_edit_form 
    Caption         =   "Nieuw vaarplan"
-   ClientHeight    =   5880
+   ClientHeight    =   5985
    ClientLeft      =   45
    ClientTop       =   375
    ClientWidth     =   7770
@@ -13,9 +13,10 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
-
 Option Explicit
+
+Public Cancelflag As Boolean
+
 Dim caller_ctr As MSForms.control
 Private WithEvents cal As cCalendar
 Attribute cal.VB_VarHelpID = -1
@@ -86,6 +87,11 @@ End Sub
 
 
 
+Private Sub CommandButton2_Click()
+Cancelflag = True
+Me.Hide
+End Sub
+
 Private Sub eta_date_tb_Enter()
 Set caller_ctr = Me.eta_date_tb
 Call create_datepicker
@@ -104,6 +110,10 @@ End If
 
 End Sub
 
+
+Private Sub MultiPage1_Change()
+
+End Sub
 
 Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal Y As Single)
 Call proj.sail_plan_form_route_lb_click
@@ -141,8 +151,8 @@ If Not input_mask_time(Me.current_after_tb) Then
     Cancel = True
 End If
 End Sub
-Private Sub cw_before_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
-If Not input_mask_time(Me.cw_before_tb) Then
+Private Sub current_before_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
+If Not input_mask_time(Me.current_before_tb) Then
     Cancel = True
 End If
 End Sub
@@ -250,6 +260,16 @@ Me.rta_frame.Visible = False
 Me.current_frame.Visible = False
 Me.rta_frame.Left = 6
 Me.current_frame.Left = 6
+
+Me.eta_ob = True
+
+Me.current_before_cb.AddItem "voor"
+Me.current_before_cb.AddItem "na"
+Me.current_before_cb.Value = "voor"
+
+Me.current_after_cb.AddItem "voor"
+Me.current_after_cb.AddItem "na"
+Me.current_after_cb.Value = "na"
 
 End Sub
 Private Function input_mask_time(tb As MSForms.TextBox) As Boolean
