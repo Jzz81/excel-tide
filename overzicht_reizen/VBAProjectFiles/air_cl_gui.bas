@@ -5,7 +5,6 @@ Sub fill_cb()
 Dim sh As Worksheet
 Dim cnt As OLEObject
 Dim clm As Long
-Dim rw As Long
 
 Set sh = ThisWorkbook.Sheets("Air clearance")
 Set cnt = sh.OLEObjects("name_cb")
@@ -27,7 +26,6 @@ Sub name_cb_Change()
 Dim sh As Worksheet
 Dim cnt As OLEObject
 Dim clm As Long
-Dim rw As Long
 
 Set sh = ThisWorkbook.Sheets("Air clearance")
 Set cnt = sh.OLEObjects("name_cb")
@@ -46,7 +44,6 @@ Set sh = Nothing
 
 End Sub
 Sub draw(clm As Long)
-Dim shp As Shape
 Dim X1 As Double
 Dim X2 As Double
 Dim Y1 As Double
@@ -57,7 +54,6 @@ Dim maxH As Long
 Dim i As Long
 Dim ii As Long
 Dim qstr As String
-Dim handl As Long
 Dim ret As Long
 Dim jd0 As Double
 Dim jd1 As Double
@@ -169,12 +165,3 @@ Dim s As String
     Sqlite3.SQLite3Finalize handl
 
 End Sub
-Private Sub delShapes()
-Dim shp As Shape
-For Each shp In ActiveSheet.Shapes
-    If shp.Type = 1 Or shp.Type = 17 Then
-        shp.Delete
-    End If
-Next shp
-End Sub
-

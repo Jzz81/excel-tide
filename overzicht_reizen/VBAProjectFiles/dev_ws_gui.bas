@@ -2,7 +2,9 @@ Attribute VB_Name = "dev_ws_gui"
 Option Explicit
 Option Base 0
 Option Compare Text
-Const TIDAL_DATA_DEV_DATABASE_PATH As String = "\\srkgna\personal\GNA\databaseHVL\GetijGegevens\afwijkingen-2015.accdb"
+
+'module not active right now, worksheet hidden.
+
 Private Function get_deviation_table_names() As Variant
 'will retreive the table names from the database
 Dim rst As ADODB.Recordset
@@ -44,19 +46,14 @@ Dim qstr As String
 Dim tables As Variant
 Dim tbl_i As Long
 Dim v As Variant
-Dim v1 As Variant
 Dim rws As Long
-Dim i As Long
-Dim last_value As Long
-Dim dif As Long
-Dim exp_value As Long
-Dim avr As Double
 Dim sh As Worksheet
 
+'TODO: validate database path
 Call ado_db.connect_ADO(TIDAL_DATA_DEV_DATABASE_PATH)
 
 tables = get_deviation_table_names
-If Not IsArray(tables) Then GoTo endsub
+If Not IsArray(tables) Then GoTo EndSub
 
 Set rst = ado_db.ADO_RST
 
@@ -79,7 +76,7 @@ Call make_graphs(tables)
 
 sh.Rows(1 & ":" & tbl_i * 2 + 1).font.TintAndShade = 0
 
-endsub:
+EndSub:
 Set sh = Nothing
 Set rst = Nothing
 Call ado_db.disconnect_ADO
@@ -88,20 +85,12 @@ End Sub
 Private Sub make_graphs(tables As Variant)
 'make graphs for the deviations
 Dim i As Long
-Dim ii As Long
 Dim shp As Shape
 Dim dev_ser As Series
 Dim as_ser As Series
 Dim ser As Series
-Dim dev_vals As Variant
-Dim as_vals As Variant
-Dim new_vals As Variant
-Dim total As Double
 Dim sh As Worksheet
-Dim last_clm
-Dim B As Boolean
-Dim HW As Boolean
-Dim cnt As Long
+Dim last_clm As Long
 
 If Not IsArray(tables) Then Exit Sub
 
@@ -149,9 +138,7 @@ For i = 0 To UBound(tables)
         End With
         
         Set dev_ser = .FullSeriesCollection("afwijking")
-        dev_vals = dev_ser.Values
         Set as_ser = .FullSeriesCollection("astro")
-        as_vals = as_ser.Values
 
         'construct new series
         Set ser = .SeriesCollection.NewSeries

@@ -1,5 +1,6 @@
 Attribute VB_Name = "ws_gui"
 Option Explicit
+Option Base 0
 
 Const SAIL_PLAN_GRAPH_DRAW_BOTTOM As Long = 500
 Const SAIL_PLAN_GRAPH_DRAW_TOP As Long = 85
@@ -12,6 +13,7 @@ Dim SAIL_PLAN_MILE_LENGTH As Double
 Const SAIL_PLAN_TABLE_TOP_ROW As Long = 35
 
 Public Drawing As Boolean
+
 
 Public Sub right_mouse_delete()
 'delete the whole sail plan
@@ -37,6 +39,103 @@ If connect_here Then Call ado_db.disconnect_ADO
 End Sub
 Public Sub right_mouse_finish()
 'finalize the sail plan and move to history database
+Dim id As Long
+Dim his_conn As ADODB.Connection
+Dim qstr As String
+Dim ctr As MSForms.Control
+Dim s As String
+Dim ss() As String
+
+'get id from sheet
+id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
+'loop all tresholds, enter into history database, check if treshold
+'needs to be logged.
+
+s = SAIL_PLAN_ARCHIVE_DATABASE_PATH
+'validate archive sail plan database path
+If Dir(s) = vbNullString Then
+    MsgBox "De database voor het vaarplannen archief is niet gevonden. " _
+        & "Controleer de locatie in het instellingen menu." _
+        , vbExclamation
+    'end execution
+    End
+ElseIf Right(s, 6) <> ".accdb" Then
+    MsgBox "De database voor het vaarplannen archief is niet valide. Is dit wel een '.accdb' database?" _
+        , vbExclamation
+    'end execution
+    End
+End If
+
+'open connection to active database
+    Call ado_db.connect_ADO
+
+'construct query string to insert the selected sail_plan into the
+'archive database
+    qstr = "INSERT INTO sail_plans IN '" _
+        & s & _
+        "' SELECT * FROM sail_plans WHERE id = '" & id & "';"
+
+'execute query
+    conn.Execute qstr
+
+'to be able to modify the history database, we need 2 connections
+'setup one locally
+    Set his_conn = New ADODB.Connection
+    With his_conn
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open s
+    End With
+
+'load finalize_form
+    Call proj.finalize_form_load(id)
+
+'finalize form is now hidden; dt values are validated.
+    With finalize_form
+        If .cancelflag Then
+            'delete the sailplan form the history database
+            qstr = "DELETE * FROM sail_plans WHERE id = '" & id & "';"
+            his_conn.Execute qstr
+            GoTo EndSub
+        End If
+        'insert ata's
+        For Each ctr In .ata_frame.Controls
+            If TypeName(ctr) = "TextBox" Then
+                ss = Split(ctr.Name, "_")
+                qstr = "UPDATE sail_plans SET ata = #" _
+                    & CDate(ctr.text) _
+                    & "# WHERE id = '" & id & "' " _
+                    & "AND treshold_index = " & ss(1) & ";"
+                his_conn.Execute qstr
+            End If
+        Next ctr
+        'insert sailplan succes
+        If .planning_ob_yes Then
+            qstr = "UPDATE sail_plans SET sail_plan_succes = TRUE WHERE id = '" _
+                & id & "';"
+            his_conn.Execute qstr
+        Else
+            'TODO:
+            'add no_succes reason
+        End If
+        'TODO:
+        'add remarks
+    End With
+    Unload finalize_form
+
+'delete the sail plan from the active database
+    qstr = "DELETE * FROM sail_plans WHERE id = '" & id & "';"
+    conn.Execute qstr
+
+'update gui
+    Call ws_gui.clean_sheet
+    Call ws_gui.build_sail_plan_list
+
+EndSub:
+his_conn.Close
+Set his_conn = Nothing
+
+Call ado_db.disconnect_ADO
+
 End Sub
 Public Sub right_mouse_edit()
 'load the sail plan into the edit form
@@ -264,7 +363,6 @@ End Sub
 Public Sub display_sail_plan()
 Dim sh As Worksheet
 Dim rw As Long
-Dim i As Long
 Dim r As Range
 Dim connect_here As Boolean
 
@@ -550,13 +648,13 @@ shp.Line.Transparency = 0.4
 Set shp = Nothing
 
 End Sub
-Public Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, T As Date, text As String, Optional AlignTop As Boolean = False)
+Public Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, t As Date, text As String, Optional AlignTop As Boolean = False)
 
 Dim Tp As Double
 Dim L As Double
 Dim shp As Shape
 
-Tp = draw_bottom - (T - start_frame) * SAIL_PLAN_DAY_LENGTH
+Tp = draw_bottom - (t - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -565,9 +663,9 @@ With shp
     .Placement = xlFreeFloating
     .TextFrame2.TextRange.Characters.font.Size = 8
     If text = vbNullString Then
-        .TextFrame2.TextRange.Characters.text = Format(DST_GMT.ConvertToLT(T), "dd/mm hh:mm")
+        .TextFrame2.TextRange.Characters.text = Format(DST_GMT.ConvertToLT(t), "dd/mm hh:mm")
     Else
-        .TextFrame2.TextRange.Characters.text = text & ": " & Format(DST_GMT.ConvertToLT(T), "hh:mm")
+        .TextFrame2.TextRange.Characters.text = text & ": " & Format(DST_GMT.ConvertToLT(t), "hh:mm")
     End If
     .TextFrame.AutoSize = True
     If AlignTop Then
@@ -595,7 +693,6 @@ Dim start_global_frame As Date
 Dim start_frame As Date
 Dim end_global_frame As Date
 Dim end_frame As Date
-Dim draw_left As Double
 Dim i As Long
 Dim last_end_of_window As Date
 
@@ -763,12 +860,12 @@ If connect_here Then Call ado_db.disconnect_ADO
 End Sub
 Public Sub DrawWindow(draw_bottom As Double, start_frame As Date, start_time As Date, end_time As Date, distance As Double, green As Boolean, Optional dark As Boolean)
 'sub to draw a shape
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim h As Double
 Dim W As Double
 Dim shp As Shape
-T = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
@@ -781,7 +878,7 @@ End If
 
 If h = 0 Then Exit Sub
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, T, W, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, t, W, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then
@@ -798,14 +895,14 @@ Set shp = Nothing
 End Sub
 
 Public Sub DrawLabel(draw_bottom As Double, start_frame As Date, end_frame As Date, distance As Double, text As String)
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim shp As Shape
 Dim Pi As Double
 
 Pi = 4 * Atn(1)
 
-T = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -818,7 +915,7 @@ With shp
     .TextFrame2.TextRange.Characters.text = text
     .TextFrame.AutoSize = True
     'put center on top of colom:
-    .Top = T - .Height * 0.5
+    .Top = t - .Height * 0.5
     .Left = L - .Width * 0.5
     'rotate:
     .Rotation = -50

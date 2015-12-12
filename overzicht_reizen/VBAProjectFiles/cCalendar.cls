@@ -149,7 +149,7 @@ Public Property Let Tag(sTag As String)
     sPTag = sTag
 End Property
 
-Public Property Get Parent() As control
+Public Property Get Parent() As Control
     If bInit Then
         Set Parent = CBxY.Parent.Parent
     Else
@@ -868,7 +868,7 @@ Public Sub Move( _
         Optional vLayout)
         
     Dim i As Long, L As Currency, B As Currency, lc As Currency, bc As Currency
-    Dim T As Long, b_ym As Currency, b_combo_m As Currency
+    Dim t As Long, b_ym As Currency, b_combo_m As Currency
     
     Const h_combo As Long = 16
     Const b_combo_y As Long = 42
@@ -876,7 +876,7 @@ Public Sub Move( _
     b_ym = b_combo_y + 2 + b_combo_m
     
     If bInit Then
-        T = IIf(ShowDays, 7, 6)
+        t = IIf(ShowDays, 7, 6)
         
         With CBxY.Parent 'Frame
             sPTop = IIf(IsMissing(vTop), IIf(Top = -1, .Top, Top), vTop)
@@ -887,7 +887,7 @@ Public Sub Move( _
             L = Height
             B = Width
             L = Zero_Negative_Value(L - IIf(ShowTitle Or ShowDateSelectors, h_combo, 0) - 1)
-            lc = CCur(L / T)
+            lc = CCur(L / t)
             bc = CCur(B / 7)
             B = bc * 7
         End With
@@ -1156,7 +1156,7 @@ End Sub
 '# Private Function
 
 Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
-    Dim v(0 To 41) As Date, i As Long, G As Long, L As Long, p As Long, T As Date
+    Dim v(0 To 41) As Date, i As Long, G As Long, L As Long, p As Long, t As Date
     
     i = VBA.DateTime.Weekday(VBA.DateSerial(lYear, lMonth, 1), 1 + lPFirstDay Mod 7) - 1
     
@@ -1184,9 +1184,9 @@ Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
     If bPRightToLeft Then
         For L = 0 To 5
             For i = 0 To 2
-                T = v(L * 7 + i)
+                t = v(L * 7 + i)
                 v(L * 7 + i) = v(L * 7 + (6 - i))
-                v(L * 7 + (6 - i)) = T
+                v(L * 7 + (6 - i)) = t
             Next
         Next
     End If

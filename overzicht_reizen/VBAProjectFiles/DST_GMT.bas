@@ -19,7 +19,7 @@ Public Function convert_xml_string_to_dt(dt As String) As Date
 convert_xml_string_to_dt = ConvertToLT(CDate(Left(dt, 10)) + CDate(Mid(dt, 12, 8)))
 End Function
  
-Function ConvertToGMT(LocalTime As Date)
+Function ConvertToGMT(LocalTime As Date) As Date
      
 ' LocalTime is datetime in local
 ' GTM_Adjust is the normal number of hours you add to or subtract from GMT to get local standard time
@@ -41,7 +41,7 @@ Else
 End If
      
 End Function
-Function ConvertToLT(GMT As Date)
+Function ConvertToLT(GMT As Date) As Date
      
 ' GMT is datetime
 ' GTM_Adjust is the normal number of hours you add to or subtract from GMT to get local standard time
@@ -69,7 +69,7 @@ End If
 End Function
  
  
-Public Function NthWeekday(Position, DayIndex As Long, TargetMonth As Long, Optional TargetYear As Long)
+Public Function NthWeekday(Position As Variant, DayIndex As Long, TargetMonth As Long, Optional TargetYear As Long)
      
      ' Returns any arbitrary weekday (the "Nth" weekday) of a given month
      ' Position is the weekday's position in the month.  Must be a number 1-5, or the letter L (last)

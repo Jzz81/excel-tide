@@ -15,9 +15,9 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
-Public Cancelflag As Boolean
+Public cancelflag As Boolean
 
-Dim caller_ctr As MSForms.control
+Dim caller_ctr As MSForms.Control
 Private WithEvents cal As cCalendar
 Attribute cal.VB_VarHelpID = -1
 
@@ -52,23 +52,23 @@ Private Sub create_datepicker()
 'multipage behaves strangely if global position is calculated. Probably the
 'tabstrip that is not properly calculated.
 Set cal = New cCalendar
-Dim T As Double
+Dim t As Double
 Dim L As Double
-Dim ctr As MSForms.control
+Dim ctr As MSForms.Control
 Set ctr = caller_ctr
 On Error Resume Next
     Do Until ctr.Parent.Name = Me.Name
-        T = T + ctr.Top
+        t = t + ctr.Top
         L = L + ctr.Left
         Set ctr = ctr.Parent
     Loop
 On Error GoTo 0
 'add 15 to compensate for the tabstrip (see above)
-T = T + caller_ctr.Height + 15
+t = t + caller_ctr.Height + 15
 
 With Me.datepicker_frame
     .Visible = True
-    .Top = T
+    .Top = t
     .Left = L
     .ZOrder (0)
 End With
@@ -88,7 +88,7 @@ End Sub
 
 
 Private Sub CommandButton2_Click()
-Cancelflag = True
+cancelflag = True
 Me.Hide
 End Sub
 
@@ -115,7 +115,7 @@ Private Sub MultiPage1_Change()
 
 End Sub
 
-Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal Y As Single)
+Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal y As Single)
 Call proj.sail_plan_form_route_lb_click
 
 End Sub
@@ -273,7 +273,6 @@ Me.current_after_cb.Value = "na"
 
 End Sub
 Private Function input_mask_time(tb As MSForms.TextBox) As Boolean
-Dim s As String
 Dim ss() As String
 
 input_mask_time = True

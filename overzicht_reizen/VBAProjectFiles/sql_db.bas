@@ -5,61 +5,72 @@ Option Compare Text
 
 Dim tidal_conn As ADODB.Connection
 
-Const LibDir As String = "\\SRKGNA\personal\GNA\databaseHVL\Sqlite\Libs"
 Const db_location As String = ":memory:"
 
 Dim tresholds_collection As Collection
 Dim hw_collection As Collection
 
-Const TIDAL_DATA_DATABASE_PATH As String = "\\srkgna\personal\GNA\databaseHVL\GetijGegevens\Jaartij-<YEAR>.accdb"
-Const TIDAL_DATA_HW_DATABASE_PATH As String = "\\srkgna\personal\GNA\databaseHVL\GetijGegevens\Jaartij-<YEAR>_HW.accdb"
 
 Public Sub load_tidal_data_to_memory()
+'load all data from the access database into a
+'sqlite3 memory database
 Dim connect_here As Boolean
 
-Call sql_db.initialize_SQLite
+'initialize the sqlite libraries
+    If Not sql_db.initialize_SQLite Then
+        'could not initialize, exit here
+        MsgBox "Kon 'SQLite engine' niet initializeren omdat de benodigde " _
+            & "bibliotheken niet konden worden gevonden. Selecteer de juiste " _
+            & "locatie bij 'opties'."
+        Exit Sub
+    End If
 
-If tidal_conn Is Nothing Then
-    Call sql_db.connect_tidal_ADO
-    connect_here = True
-End If
+'connect to the tidal database (access database)
+    If tidal_conn Is Nothing Then
+        Call sql_db.connect_tidal_ADO
+        connect_here = True
+    End If
 
 'first make sure there is no open sqlite db in memory
 'a new one will be opened on first use
-Call sql_db.close_memory_db
+    Call sql_db.close_memory_db
 
 'show the process to the user using feedbackform
 Load FeedbackForm
 With FeedbackForm
     .Caption = "Database inladen..."
     .ProgressLBL = vbNullString
-    .show vbModeless
+    .Show vbModeless
     
     'make new database
-    Call sql_db.DB_HANDLE(open_new_db:=True)
+        Call sql_db.DB_HANDLE(open_new_db:=True)
     
-    'try to get all tables from the access database
     .FeedbackLBL = "Database layout inladen..."
-    Call sql_db.copy_database_layout
+    'try to get all tables from the access database
+        Call sql_db.copy_database_layout
     
-    'try to get all data from the access database
     FeedbackForm.FeedbackLBL = "Getijdegegevens inladen..."
-    Call sql_db.copy_database_data
+    'try to get all data from the access database
+        Call sql_db.copy_database_data
     
-    'move to hw database:
-    Call sql_db.disconnect_tidal_ADO
-    Call sql_db.connect_tidal_ADO(HW:=True)
+    'copy to hw database data as well. Disconnect first:
+        Call sql_db.disconnect_tidal_ADO
+    'connect hw database
+        Call sql_db.connect_tidal_ADO(HW:=True)
     
     .FeedbackLBL = "HW database layout inladen..."
-    Call sql_db.copy_database_layout(HW:=True)
+    'get all tables from the access database
+        Call sql_db.copy_database_layout(HW:=True)
     
     .FeedbackLBL = "HW getijdegegevens inladen..."
-    Call sql_db.copy_database_data(HW:=True)
+    'get all data from the access database
+        Call sql_db.copy_database_data(HW:=True)
 End With
 
-If FeedbackForm.Cancelflag Then
-    Call sql_db.close_memory_db
-End If
+'check if cancel was clicked:
+    If FeedbackForm.cancelflag Then
+        Call sql_db.close_memory_db
+    End If
 
 Unload FeedbackForm
 
@@ -69,9 +80,7 @@ End Sub
 Public Sub copy_database_layout(Optional HW As Boolean = False)
 'sub that will load all available tables in the Access db into the tresholds_collection
 'if hw is set, the hw database is to be added
-Dim connect_here As Boolean
 Dim rst As ADODB.Recordset
-Dim qstr As String
 
 If HW Then
     Set hw_collection = New Collection
@@ -106,7 +115,6 @@ Public Sub copy_database_data(Optional HW As Boolean = False)
 'feedbackform must be loaded while this function is executed!
 Dim v() As Variant
 Dim i As Long
-Dim ii As Long
 Dim c As Collection
 Dim s As String
 Dim qstr As String
@@ -141,7 +149,7 @@ For i = 1 To c.Count
     End If
     DoEvents
     rst.Close
-    If FeedbackForm.Cancelflag Then Exit For
+    If FeedbackForm.cancelflag Then Exit For
 Next i
 
 Set rst = Nothing
@@ -152,7 +160,6 @@ Public Sub insert_hw_data_array_into_sqlite(v() As Variant, Table As String)
 Dim handl As Long
 Dim Qstr1 As String
 Dim Qstr2 As String
-Dim s As String
 Dim i As Long
 Dim i_max As Long
 Dim update_progress As Boolean
@@ -195,7 +202,7 @@ Do Until i >= i_max
     Sqlite3.SQLite3Step handl
     'should be 0
     Sqlite3.SQLite3Finalize handl
-    If FeedbackForm.Cancelflag Then Exit Do
+    If FeedbackForm.cancelflag Then Exit Do
 Loop
 
 End Sub
@@ -204,7 +211,6 @@ Public Sub insert_data_array_into_sqlite(v() As Variant, Table As String)
 Dim handl As Long
 Dim Qstr1 As String
 Dim Qstr2 As String
-Dim s As String
 Dim i As Long
 Dim i_max As Long
 Dim update_progress As Boolean
@@ -249,7 +255,7 @@ Do Until i >= i_max
     Sqlite3.SQLite3Step handl
     'should be 0
     Sqlite3.SQLite3Finalize handl
-    If FeedbackForm.Cancelflag Then Exit Do
+    If FeedbackForm.cancelflag Then Exit Do
 Loop
 
 End Sub
@@ -262,18 +268,45 @@ End Sub
 Public Sub connect_tidal_ADO(Optional HW As Boolean = False)
 'if hw is set, open the hw database
 Dim s As String
+Dim y As String
+
 If HW Then
     s = TIDAL_DATA_HW_DATABASE_PATH
 Else
     s = TIDAL_DATA_DATABASE_PATH
 End If
 
+y = CALCULATION_YEAR
+
 'check if database exists
-If Dir(Replace(s, "<YEAR>", Year(Now))) = vbNullString Then
-    'database does not exist
-    MsgBox "Er is geen database gevonden voor de getijdegegevens.", vbCritical
-    End
-End If
+    If Dir(Replace(s, "<YEAR>", y)) = vbNullString Then
+        'database does not exist
+        MsgBox "Er is geen database gevonden voor de getijdegegevens. " _
+            & "Controleer de database locatie en het berekeningsjaar in het instellingen menu." _
+             , vbCritical
+        End
+    ElseIf Right(Replace(s, "<YEAR>", y), 6) <> ".accdb" Then
+        MsgBox "De database voor getijdegegevens is niet valide. Is dit wel een '.accdb' database?" _
+            , vbExclamation
+        'end execution
+        End
+    End If
+
+'check if there is a new database for next year already
+    tidal_data_ADO_next_year_check s
+    
+'insert year into db path and open connection
+    s = Replace(s, "<YEAR>", y)
+    Set tidal_conn = New ADODB.Connection
+    
+    With tidal_conn
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open s
+    End With
+
+End Sub
+
+Private Sub tidal_data_ADO_next_year_check(ByRef s As String)
 
 'check if we are in the last 2 weeks of the year
 If Now > DateSerial(Year(Now) + 1, 1, -14) Then
@@ -283,18 +316,9 @@ If Now > DateSerial(Year(Now) + 1, 1, -14) Then
             Year(Now) + 1 & " gemaakt!", vbExclamation
     End If
 End If
-    
-'insert year into db path
-s = Replace(s, "<YEAR>", Year(Now))
-
-Set tidal_conn = New ADODB.Connection
-
-With tidal_conn
-    .Provider = "Microsoft.ACE.OLEDB.12.0"
-    .Open s
-End With
-
 End Sub
+
+
 Public Sub disconnect_tidal_ADO()
 tidal_conn.Close
 Set tidal_conn = Nothing
@@ -316,23 +340,21 @@ End Function
 
 Public Sub CreateTable(TableName As String, Columns As String)
 'will create a tabel in the sqlite db
-Dim hand As Long
-Dim ret As Long
+Dim handl As Long
 'prepare, execute and close
 'should be 0:
-Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, "CREATE TABLE " & TableName & " (" & Columns & ");", hand
+Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, "CREATE TABLE " & TableName & " (" & Columns & ");", handl
 'should be 101:
-Sqlite3.SQLite3Step hand
+Sqlite3.SQLite3Step handl
 'should be 0:
-Sqlite3.SQLite3Finalize hand
+Sqlite3.SQLite3Finalize handl
 
 End Sub
 Public Sub close_memory_db()
-Dim RetVal As Long
 'close the SQLite database
-Call sql_db.initialize_SQLite
-RetVal = Sqlite3.SQLite3Close(sql_db.DB_HANDLE)
-sql_db.DB_HANDLE (True)
+    Call sql_db.initialize_SQLite
+    Sqlite3.SQLite3Close (sql_db.DB_HANDLE)
+    sql_db.DB_HANDLE reset:=True
 End Sub
 Public Function check_sqlite_db_is_loaded() As Boolean
 'simple check
@@ -344,21 +366,24 @@ Public Function DB_HANDLE(Optional reset As Boolean = False, Optional open_new_d
 Dim h As Long
 Dim RetVal As Long
 
-If reset Then
-    ThisWorkbook.Sheets("data").Cells(1, 1).Value = vbNullString
-    ThisWorkbook.Saved = True
-    Exit Function
-End If
+'if reset, remove reference
+    If reset Then
+        ThisWorkbook.Sheets("data").Cells(1, 2).Value = vbNullString
+        ThisWorkbook.Saved = True
+        Exit Function
+    End If
 
-If ThisWorkbook.Sheets("data").Cells(1, 1).Value <> vbNullString Then
-    DB_HANDLE = val(ThisWorkbook.Sheets("data").Cells(1, 1).Value)
+If ThisWorkbook.Sheets("data").Cells(1, 2).Value <> vbNullString Then
+    'get database handle from the worksheet
+    DB_HANDLE = val(ThisWorkbook.Sheets("data").Cells(1, 2).Value)
 ElseIf open_new_db Then
+    'no handle available, construction of new database is forced
     If Not sql_db.initialize_SQLite Then Exit Function
     ' Open the database
     RetVal = Sqlite3.SQLite3Open(db_location, h)
-    ThisWorkbook.Sheets("data").Cells(1, 1).Value = h
+    ThisWorkbook.Sheets("data").Cells(1, 2).Value = h
     ThisWorkbook.Saved = True
-    DB_HANDLE = ThisWorkbook.Sheets("data").Cells(1, 1).Value
+    DB_HANDLE = ThisWorkbook.Sheets("data").Cells(1, 2).Value
 Else
     'no db_handle and no new database. Initialize sqlite to prevent
     'errors.
@@ -366,7 +391,7 @@ Else
 End If
 
 End Function
-Public Function initialize_SQLite() As Boolean
+Private Function initialize_SQLite() As Boolean
 'initialize the SQLite libs
 Dim InitReturn As Long
 InitReturn = SQLite3Initialize(LibDir)

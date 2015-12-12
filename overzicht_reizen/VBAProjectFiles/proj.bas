@@ -18,59 +18,169 @@ Public Const EVAL_FRAME_AFTER As Long = 24
 
 Public route As Collection
 
+'*************************************
+'callback routines from ribbon buttons
+'*************************************
+
+Sub sail_plan_new(Control As IRibbonControl)
 'Callback for add_sailplan_button onAction
-Sub sail_plan_new(control As IRibbonControl)
-
-'execute only if sqlite db is loaded
-If sql_db.DB_HANDLE = 0 Then
-    MsgBox "De database is niet ingeladen. Kan geen vaarplannen maken", Buttons:=vbCritical
-Else
-    Call proj.sail_plan_form_load
-End If
-
+    'execute only if sqlite db is loaded
+    If sql_db.DB_HANDLE = 0 Then
+        MsgBox "De database is niet ingeladen. Kan geen vaarplannen maken", Buttons:=vbCritical
+    Else
+        Call proj.sail_plan_form_load
+    End If
 End Sub
-
+Sub sail_plan_edit(Control As IRibbonControl)
 'Callback for edit_sailplan_button onAction
-Sub sail_plan_edit(control As IRibbonControl)
+    'TODO: connect to the edit routine
 End Sub
-
+Sub open_options(Control As IRibbonControl)
 'Callback for show_what_button onAction
-Sub open_options(control As IRibbonControl)
+    'TODO: rename button and write routines for options
 End Sub
-
+Sub edit_tresholds(Control As IRibbonControl)
 'Callback for tresholds_edit_button onAction
-Sub edit_tresholds(control As IRibbonControl)
     Call proj.treshold_form_load
 End Sub
-
+Sub edit_ship_types(Control As IRibbonControl)
 'Callback for ship_type_edit_button onAction
-Sub edit_ship_types(control As IRibbonControl)
     Call proj.ship_type_form_load
 End Sub
-
+Sub edit_connections(Control As IRibbonControl)
 'Callback for connections_edit_button onAction
-Sub edit_connections(control As IRibbonControl)
     Call proj.connection_form_load
 End Sub
+Sub edit_routes(Control As IRibbonControl)
 'Callback for routes_edit_button onAction
-Sub edit_routes(control As IRibbonControl)
     Call proj.routes_form_load
 End Sub
-
+Sub load_database(Control As IRibbonControl)
 'Callback for Load_database_button onAction
-Sub load_database(control As IRibbonControl)
-Call sql_db.load_tidal_data_to_memory
-Call dev_ws_gui.display_expected_data
+    Call sql_db.load_tidal_data_to_memory
 End Sub
-Public Sub test()
-MsgBox "test"
-End Sub
+Sub close_database(Control As IRibbonControl)
 'Callback for Close_database_button onAction
-Sub close_database(control As IRibbonControl)
-Call sql_db.close_memory_db
+    Call sql_db.close_memory_db
 End Sub
 
+'*********************************************
+'constants stored on (hidden) 'data' worksheet
+'*********************************************
+'functions to retreive those constants
+Public Function TIDAL_WINDOWS_DATABASE_PATH() As String
+    TIDAL_WINDOWS_DATABASE_PATH = _
+        ThisWorkbook.Worksheets("data").Cells(5, 2).text
+End Function
+Public Function TIDAL_DATA_DEV_DATABASE_PATH() As String
+    'TODO: need to move the replace 'year' string
+    '   to the procedure using the const.
+    Dim s As String
+    s = ThisWorkbook.Worksheets("data").Cells(4, 2).text
+    TIDAL_DATA_DEV_DATABASE_PATH = _
+        Replace(s, "<YEAR>", Year(Now))
+End Function
+Public Function TIDAL_DATA_DATABASE_PATH() As String
+    TIDAL_DATA_DATABASE_PATH = _
+        ThisWorkbook.Worksheets("data").Cells(2, 2).text
+End Function
+Public Function TIDAL_DATA_HW_DATABASE_PATH() As String
+    TIDAL_DATA_HW_DATABASE_PATH = _
+        ThisWorkbook.Worksheets("data").Cells(3, 2).text
+End Function
+Public Function LibDir() As String
+    LibDir = _
+        ThisWorkbook.Worksheets("data").Cells(7, 2).text
+End Function
+Public Function SAIL_PLAN_ARCHIVE_DATABASE_PATH() As String
+    SAIL_PLAN_ARCHIVE_DATABASE_PATH = _
+        ThisWorkbook.Worksheets("data").Cells(6, 2).text
+End Function
+Public Function CALCULATION_YEAR() As String
+    CALCULATION_YEAR = _
+        ThisWorkbook.Worksheets("data").Cells(8, 2).text
+End Function
 
+
+Public Sub finalize_form_load(id As Long)
+'load the finalize form based on the sail plan with id
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim ctr As MSForms.Control
+Dim t As Long
+
+If conn Is Nothing Then
+    Call ado_db.connect_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+Load finalize_form
+
+qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+rst.Open qstr
+
+With finalize_form
+    'set labels
+    .ship_name_lbl.Caption = rst!ship_naam
+    .voyage_name_lbl.Caption = rst!route_naam
+    'loop tresholds to find logging tresholds
+    t = 10
+    Do Until rst.EOF
+        If ado_db.get_treshold_logging(rst!treshold_name) Then
+            'adjust height of the frame to make room
+            .ata_frame.Height = .ata_frame.Height + 15
+            .Height = .Height + 15
+            .cancel_btn.Top = .cancel_btn.Top + 15
+            .ok_btn.Top = .ok_btn.Top + 15
+            'insert label and date / time textboxes
+            Set ctr = .ata_frame.Controls.Add("Forms.Label.1")
+                ctr.Top = t
+                ctr.Left = 5
+                ctr.Caption = rst!treshold_name
+            Set ctr = .ata_frame.Controls.Add("Forms.TextBox.1")
+                ctr.Top = t
+                ctr.Left = 100
+                ctr.Width = 100
+                ctr.text = Format(rst!tidal_window_start, "dd-mm-yy") & " uu:mm"
+                ctr.Name = rst!treshold_name & "_" & rst!treshold_index
+            Set ctr = Nothing
+            t = t + 15
+        End If
+        rst.MoveNext
+    Loop
+    .Show
+End With
+    
+If connect_here Then Call ado_db.disconnect_ADO
+
+End Sub
+Public Sub finalize_form_ok_click()
+Dim ctr As MSForms.Control
+Dim dt As Date
+Dim s As String
+Dim ss() As String
+
+'validate datetime values
+With finalize_form
+    For Each ctr In .ata_frame.Controls
+        If TypeName(ctr) = "TextBox" Then
+            On Error Resume Next
+                dt = CDate(ctr.text)
+                If Err.Number <> 0 Then
+                    ss = Split(ctr.Name, "_")
+                    MsgBox "Datum / tijdwaarde voor " & ss(0) & " wordt niet herkend.", vbExclamation
+                    Set ctr = Nothing
+                    Exit Sub
+                End If
+            On Error GoTo 0
+        End If
+    Next ctr
+    .Hide
+End With
+
+End Sub
 Public Sub sail_plan_calculate_raw_windows(id As Long)
 'will calculate the raw windows for the given sail plan
 'and insert them into the database
@@ -101,6 +211,7 @@ Set rst = ado_db.ADO_RST
 
 qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
 rst.Open qstr
+
 
 Do Until rst.EOF
     'construct evaluate time frame
@@ -467,7 +578,7 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 Dim ss() As String
-Dim ctr As MSForms.control
+Dim ctr As MSForms.Control
 
 If conn Is Nothing Then
     Call ado_db.connect_ADO
@@ -476,7 +587,7 @@ End If
 
 Set rst = ado_db.ADO_RST
 
-Call proj.sail_plan_form_load(show:=False)
+Call proj.sail_plan_form_load(Show:=False)
 qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
 rst.Open qstr
 
@@ -539,7 +650,7 @@ With sail_plan_edit_form
         
         rst.MoveNext
     Loop
-    .show
+    .Show
 End With
 
 rst.Close
@@ -559,13 +670,13 @@ End If
 If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
-Public Sub sail_plan_form_load(Optional show As Boolean = True)
+Public Sub sail_plan_form_load(Optional Show As Boolean = True)
 'load the sail_plan form
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim ctr As MSForms.control
-Dim T As Long
+Dim ctr As MSForms.Control
+Dim t As Long
 Dim handl As Long
 Dim ret As Long
 Dim s As String
@@ -615,7 +726,7 @@ rst.Close
 qstr = "SELECT * FROM speeds;"
 rst.Open qstr
 With sail_plan_edit_form.speedframe
-    T = 5
+    t = 5
     Do Until rst.EOF
         If rst!naam <> vbNullString Then
             'add speed to speed combobox
@@ -627,19 +738,19 @@ With sail_plan_edit_form.speedframe
             Set ctr = .Controls.Add("Forms.Label.1")
             ctr.Caption = rst!naam
             ctr.Left = 5
-            ctr.Top = T + 5
+            ctr.Top = t + 5
             ctr.Width = 40
             Set ctr = .Controls.Add("Forms.TextBox.1")
             ctr.Left = 45
-            ctr.Top = T
+            ctr.Top = t
             ctr.Width = 30
             ctr.Name = "speed_" & rst!id
             Set ctr = Nothing
-            T = T + 15
+            t = t + 15
         End If
         rst.MoveNext
     Loop
-    .Height = T + 15
+    .Height = t + 15
 End With
 rst.Close
 
@@ -686,9 +797,9 @@ Do While ret = SQLITE_ROW
     ret = Sqlite3.SQLite3Step(handl)
 Loop
 
-If show Then sail_plan_edit_form.show
+If Show Then sail_plan_edit_form.Show
 
-endsub:
+EndSub:
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -731,7 +842,7 @@ If connect_here Then Call ado_db.disconnect_ADO
 End Function
 Private Function sail_plan_form_get_speeds_array() As Variant
 Dim s(0 To 9) As Double
-Dim ctr As MSForms.control
+Dim ctr As MSForms.Control
 With sail_plan_edit_form
     For Each ctr In .speedframe.Controls
         If Left(ctr.Name, 6) = "speed_" Then
@@ -1306,7 +1417,7 @@ Public Sub sail_plan_form_ship_cb_exit()
 Dim i As Long
 Dim id As Long
 Dim ss() As String
-Dim ctr As MSForms.control
+Dim ctr As MSForms.Control
 
 With sail_plan_edit_form
     If .ships_cb.ListIndex <> -1 Then
@@ -1378,7 +1489,7 @@ End With
 Call proj.routes_form_fill_route_lb
 Call proj.routes_form_fill_treshold_cb
 
-routes_edit_form.show
+routes_edit_form.Show
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -1386,6 +1497,7 @@ End Sub
 Public Sub routes_form_new_route_click()
 'unselect all routes in the routes lb and clear the dataframe
 routes_edit_form.routes_lb.ListIndex = -1
+Call proj.routes_form_unset_treshold_edit_mode
 Call proj.routes_form_clear_dataframe
 
 End Sub
@@ -1996,7 +2108,7 @@ End With
 
 Set rst = Nothing
 
-connections_edit_form.show
+connections_edit_form.Show
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -2249,7 +2361,7 @@ rst.Close
 
 Call proj.treshold_form_fill_tresholds_lb
 
-tresholds_edit_form.show
+tresholds_edit_form.Show
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -2431,7 +2543,7 @@ Dim i As Long
 Dim connect_here As Boolean
 Dim lbl As MSForms.Label
 Dim tb As MSForms.TextBox
-Dim T As Long
+Dim t As Long
 
 Load ship_types_edit_form
 
@@ -2446,21 +2558,21 @@ qstr = "SELECT * FROM speeds;"
 rst.Open qstr
 
 With ship_types_edit_form.dataframe.Controls
-    T = 60
+    t = 60
     Do Until rst.EOF
         If Not IsNull(rst!naam) Then
             Set lbl = .Add("Forms.Label.1")
-            lbl.Top = T
+            lbl.Top = t
             lbl.Left = 18
             lbl.Width = 40
             lbl.Caption = rst!naam
             Set lbl = Nothing
             Set tb = .Add("Forms.TextBox.1")
-            tb.Top = T
+            tb.Top = t
             tb.Left = 60
             tb.Name = "sp_tb_" & rst!Key
             Set tb = Nothing
-            T = T + 15
+            t = t + 15
         End If
         rst.MoveNext
     Loop
@@ -2470,7 +2582,7 @@ rst.Close
 
 Call proj.ship_type_form_fill_ship_type_lb
 
-ship_types_edit_form.show
+ship_types_edit_form.Show
 
 If connect_here Then Call ado_db.disconnect_ADO
 
@@ -2634,7 +2746,7 @@ Dim id As Long
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim ctr As MSForms.control
+Dim ctr As MSForms.Control
 
 With ship_types_edit_form
     'find selected ship_type
@@ -2914,7 +3026,7 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo endsub
+        GoTo EndSub
     Else
         Set wb = Application.Workbooks.Add
     End If
@@ -2966,7 +3078,7 @@ wb.Saved = True
 wb.Close
 Set wb = Nothing
 
-endsub:
+EndSub:
 
 rst.Close
 If connect_here Then
@@ -3067,7 +3179,7 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo endsub
+        GoTo EndSub
     Else
         Set wb = Application.Workbooks.Add
     End If
@@ -3111,7 +3223,7 @@ Loop
 Call format_tidal_graph_sheet(wb)
 Set wb = Nothing
 
-endsub:
+EndSub:
 
 rst.Close
 If connect_here Then
