@@ -98,29 +98,35 @@ End If
             GoTo EndSub
         End If
         'insert ata's
-        For Each ctr In .ata_frame.Controls
-            If TypeName(ctr) = "TextBox" Then
-                ss = Split(ctr.Name, "_")
-                qstr = "UPDATE sail_plans SET ata = #" _
-                    & CDate(ctr.text) _
-                    & "# WHERE id = '" & id & "' " _
-                    & "AND treshold_index = " & ss(1) & ";"
+            For Each ctr In .ata_frame.Controls
+                If TypeName(ctr) = "TextBox" Then
+                    ss = Split(ctr.Name, "_")
+                    qstr = "UPDATE sail_plans SET ata = #" _
+                        & CDate(ctr.text) _
+                        & "# WHERE id = '" & id & "' " _
+                        & "AND treshold_index = " & ss(1) & ";"
+                    his_conn.Execute qstr
+                End If
+            Next ctr
+        'insert sailplan succes
+            If .planning_ob_yes Then
+                qstr = "UPDATE sail_plans SET sail_plan_succes = TRUE WHERE id = '" _
+                    & id & "';"
+                his_conn.Execute qstr
+            Else
+                qstr = "UPDATE sail_plans SET no_succes_reason = '" _
+                    & .reason_tb.text & "' WHERE id = '" _
+                    & id & "';"
                 his_conn.Execute qstr
             End If
-        Next ctr
-        'insert sailplan succes
-        If .planning_ob_yes Then
-            qstr = "UPDATE sail_plans SET sail_plan_succes = TRUE WHERE id = '" _
-                & id & "';"
-            his_conn.Execute qstr
-        Else
-            'TODO:
-            'add no_succes reason
-        End If
-        'TODO:
-        'add remarks
+        'insert remarks (if any)
+            If .remarks_tb.text <> vbNullString Then
+                qstr = "UPDATE sail_plans SET remarks = '" _
+                    & .remarks_tb.text & "' WHERE id = '" _
+                    & id & "';"
+                his_conn.Execute qstr
+            End If
     End With
-    Unload finalize_form
 
 'delete the sail plan from the active database
     qstr = "DELETE * FROM sail_plans WHERE id = '" & id & "';"
@@ -131,6 +137,7 @@ End If
     Call ws_gui.build_sail_plan_list
 
 EndSub:
+Unload finalize_form
 his_conn.Close
 Set his_conn = Nothing
 
@@ -438,7 +445,9 @@ rst.Open qstr
 rw = SAIL_PLAN_TABLE_TOP_ROW
 With sh
     .Range("ship_name") = rst!ship_naam
+    .Range("ship_draught").Offset(0, -1) = "diepgang:"
     .Range("ship_draught") = Format(rst!ship_draught, "0.0")
+    .Range("ship_length").Offset(0, -1) = "loa:"
     .Range("ship_length") = Format(rst!ship_loa, "0.0")
     If Not IsNull(rst!tidal_window_start) Then
         .Cells(rw, 10) = "Tijpoort:"
@@ -651,11 +660,11 @@ End Sub
 Public Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, t As Date, text As String, Optional AlignTop As Boolean = False)
 
 Dim Tp As Double
-Dim L As Double
+Dim l As Double
 Dim shp As Shape
 
 Tp = draw_bottom - (t - start_frame) * SAIL_PLAN_DAY_LENGTH
-L = SAIL_PLAN_GRAPH_DRAW_LEFT
+l = SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
 
@@ -673,7 +682,7 @@ With shp
     Else
         .Top = Tp - .Height
     End If
-    .Left = L - .Width
+    .Left = l - .Width
 End With
 Set shp = Nothing
 
@@ -861,24 +870,24 @@ End Sub
 Public Sub DrawWindow(draw_bottom As Double, start_frame As Date, start_time As Date, end_time As Date, distance As Double, green As Boolean, Optional dark As Boolean)
 'sub to draw a shape
 Dim t As Double
-Dim L As Double
+Dim l As Double
 Dim h As Double
 Dim W As Double
 Dim shp As Shape
 t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
-L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
+l = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
 If dark Then
     W = 5
-    L = L - 1
+    l = l - 1
 Else
     W = 3
 End If
 
 If h = 0 Then Exit Sub
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, t, W, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, l, t, W, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then
@@ -896,14 +905,14 @@ End Sub
 
 Public Sub DrawLabel(draw_bottom As Double, start_frame As Date, end_frame As Date, distance As Double, text As String)
 Dim t As Double
-Dim L As Double
+Dim l As Double
 Dim shp As Shape
 Dim Pi As Double
 
 Pi = 4 * Atn(1)
 
 t = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
-L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
+l = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
 
@@ -916,7 +925,7 @@ With shp
     .TextFrame.AutoSize = True
     'put center on top of colom:
     .Top = t - .Height * 0.5
-    .Left = L - .Width * 0.5
+    .Left = l - .Width * 0.5
     'rotate:
     .Rotation = -50
     'translate:.Width * 0.5 -
@@ -931,7 +940,7 @@ End Sub
 Public Sub clean_sheet()
 'cleans the sheet for a new calculation display
 Call delShapes
-With ThisWorkbook.Sheets(1).Range("G4:Z100")
+With ThisWorkbook.Sheets(1).Range("G1:Z100")
     .ClearContents
     .Interior.Pattern = xlNone
     .Borders.LineStyle = xlNone

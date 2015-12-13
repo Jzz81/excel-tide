@@ -53,13 +53,13 @@ Private Sub create_datepicker()
 'tabstrip that is not properly calculated.
 Set cal = New cCalendar
 Dim t As Double
-Dim L As Double
+Dim l As Double
 Dim ctr As MSForms.Control
 Set ctr = caller_ctr
 On Error Resume Next
     Do Until ctr.Parent.Name = Me.Name
         t = t + ctr.Top
-        L = L + ctr.Left
+        l = l + ctr.Left
         Set ctr = ctr.Parent
     Loop
 On Error GoTo 0
@@ -69,7 +69,7 @@ t = t + caller_ctr.Height + 15
 With Me.datepicker_frame
     .Visible = True
     .Top = t
-    .Left = L
+    .Left = l
     .ZOrder (0)
 End With
 'set red color to control
@@ -111,9 +111,6 @@ End If
 End Sub
 
 
-Private Sub MultiPage1_Change()
-
-End Sub
 
 Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal y As Single)
 Call proj.sail_plan_form_route_lb_click
@@ -122,10 +119,6 @@ End Sub
 
 Private Sub routes_cb_Change()
 Call proj.sail_plan_form_route_cb_exit
-End Sub
-
-Private Sub routes_cb_Exit(ByVal Cancel As MSForms.ReturnBoolean)
-
 End Sub
 
 Private Sub rta_date_tb_Enter()
@@ -157,6 +150,10 @@ If Not input_mask_time(Me.current_before_tb) Then
 End If
 End Sub
 
+Private Sub eta_ob_Click()
+Me.rta_frame.Visible = False
+Me.current_frame.Visible = False
+End Sub
 Private Sub rta_ob_Click()
 Me.rta_frame.Visible = True
 Me.current_frame.Visible = False

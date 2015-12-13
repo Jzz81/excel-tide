@@ -62,6 +62,8 @@ Dim dt As Date
 Dim rise As Double
 Dim deviation As Double
 Dim s As String
+Dim shp As Shape
+Dim handl As Long
 
 'delete shapes
     Call delShapes
@@ -165,3 +167,13 @@ Dim s As String
     Sqlite3.SQLite3Finalize handl
 
 End Sub
+Private Sub delShapes()
+Dim shp As Shape
+For Each shp In ActiveSheet.Shapes
+    If shp.Type = 1 Or shp.Type = 17 Then
+        shp.Delete
+    End If
+Next shp
+End Sub
+
+

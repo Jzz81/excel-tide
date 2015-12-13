@@ -37,7 +37,7 @@ Sub sail_plan_edit(Control As IRibbonControl)
 End Sub
 Sub open_options(Control As IRibbonControl)
 'Callback for show_what_button onAction
-    'TODO: rename button and write routines for options
+    Call settings_form_load
 End Sub
 Sub edit_tresholds(Control As IRibbonControl)
 'Callback for tresholds_edit_button onAction
@@ -101,6 +101,52 @@ Public Function CALCULATION_YEAR() As String
         ThisWorkbook.Worksheets("data").Cells(8, 2).text
 End Function
 
+'**********************
+'settings form routines
+'**********************
+Private Sub settings_form_load()
+'load the settings form to change setup values
+    Load settings_form
+    With settings_form
+        'insert current settings
+        .calculation_year_tb = _
+            ThisWorkbook.Sheets("data").Cells(8, 2).text
+        .path_tb_tidal_data.text = _
+            ThisWorkbook.Sheets("data").Cells(2, 2).text
+        .path_tb_hw_data.text = _
+            ThisWorkbook.Sheets("data").Cells(3, 2).text
+        .path_tb_sail_plan_db.text = _
+            ThisWorkbook.Sheets("data").Cells(5, 2).text
+        .path_tb_sail_plan_archive.text = _
+            ThisWorkbook.Sheets("data").Cells(6, 2).text
+        .path_tb_Libdir.text = _
+            ThisWorkbook.Sheets("data").Cells(7, 2).text
+        .Show
+    End With
+End Sub
+Public Sub settings_form_ok_click()
+'handle the 'ok' click of the settings form
+    With settings_form
+        ThisWorkbook.Sheets("data").Cells(2, 2).Value = _
+            .path_tb_tidal_data.text
+        ThisWorkbook.Sheets("data").Cells(3, 2).Value = _
+            .path_tb_hw_data.text
+        ThisWorkbook.Sheets("data").Cells(5, 2).Value = _
+            .path_tb_sail_plan_db.text
+        ThisWorkbook.Sheets("data").Cells(6, 2).Value = _
+            .path_tb_sail_plan_archive.text
+        ThisWorkbook.Sheets("data").Cells(7, 2).Value = _
+            .path_tb_Libdir.text
+        ThisWorkbook.Sheets("data").Cells(8, 2).Value = _
+            .calculation_year_tb.text
+    End With
+    
+    Unload settings_form
+End Sub
+
+'**********************
+'finalize form routines
+'**********************
 
 Public Sub finalize_form_load(id As Long)
 'load the finalize form based on the sail plan with id
@@ -110,17 +156,18 @@ Dim connect_here As Boolean
 Dim ctr As MSForms.Control
 Dim t As Long
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
+'setup connection and recordset
+    If conn Is Nothing Then
+        Call ado_db.connect_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
+
+'query sail plan
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
 
 Load finalize_form
-
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
-
 With finalize_form
     'set labels
     .ship_name_lbl.Caption = rst!ship_naam
@@ -134,6 +181,7 @@ With finalize_form
             .Height = .Height + 15
             .cancel_btn.Top = .cancel_btn.Top + 15
             .ok_btn.Top = .ok_btn.Top + 15
+            .remarks_frame.Top = .remarks_frame.Top + 15
             'insert label and date / time textboxes
             Set ctr = .ata_frame.Controls.Add("Forms.Label.1")
                 ctr.Top = t
@@ -157,13 +205,22 @@ If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
 Public Sub finalize_form_ok_click()
+'handle click of 'ok' button on the finalize form
 Dim ctr As MSForms.Control
 Dim dt As Date
 Dim s As String
 Dim ss() As String
 
-'validate datetime values
 With finalize_form
+    'check planning optionbuttons
+    If Not .planning_ob_no.Value And Not .planning_ob_yes.Value Then
+        MsgBox "Er is niet aangegeven of het vaarplan geslaagd is.", vbExclamation
+        Exit Sub
+    ElseIf .planning_ob_no.Value And .reason_tb.text = vbNullString Then
+        MsgBox "Er is geen reden ingevuld voor het niet slagen van het vaarplan.", vbExclamation
+        Exit Sub
+    End If
+    'validate datetime values
     For Each ctr In .ata_frame.Controls
         If TypeName(ctr) = "TextBox" Then
             On Error Resume Next
@@ -181,9 +238,16 @@ With finalize_form
 End With
 
 End Sub
+
+'*********************************
+'tidal window calculation routines
+'*********************************
+
 Public Sub sail_plan_calculate_raw_windows(id As Long)
 'will calculate the raw windows for the given sail plan
 'and insert them into the database
+'raw windows are the seperate windows for each treshold.
+
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
@@ -203,54 +267,59 @@ Dim i As Long
 Dim s As String
 Dim needed_rise As Double
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
-
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
-
-
-Do Until rst.EOF
-    'construct evaluate time frame
-    If Not IsNull(rst!rta) Then
-        local_eta = rst!rta
-    Else
-        local_eta = rst!local_eta
+'setup connection and recordset
+    If conn Is Nothing Then
+        Call ado_db.connect_ADO
+        connect_here = True
     End If
-    d(0) = local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
-    d(1) = local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+    Set rst = ado_db.ADO_RST
+
+'query sail plan
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
+
+'loop tresholds
+Do Until rst.EOF
+    'if rta is set, use that, else, use local eta
+        If Not IsNull(rst!rta) Then
+            local_eta = rst!rta
+        Else
+            local_eta = rst!local_eta
+        End If
+    'construct evaluate time frame.
+        d(0) = local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+        d(1) = local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
     
     'calculate needed_rise
-    needed_rise = (rst!ship_draught + rst!ukc) - (rst!treshold_depth + rst!deviation)
+        needed_rise = (rst!ship_draught + rst!ukc) - (rst!treshold_depth + rst!deviation)
     
     'setup collection to hold the raw windows
-    Set c = New Collection
+        Set c = New Collection
     
-    If needed_rise <= 0 Then
-        'no windows, the treshold has no limitations
-        'the whole evaluate time frame is a window
-        c.Add d
-        'now skip the database query
-        GoTo WriteWindows
-    End If
+    'check if database operation is even nessesary
+        If needed_rise <= 0 Then
+            'no windows, the treshold has no limitations
+            'the whole evaluate time frame is a window
+            c.Add d
+            'now skip the database query
+            GoTo WriteWindows
+        End If
     
-    'construct julian dates:
-    jd0 = Sqlite3.ToJulianDay(d(0))
-    jd1 = Sqlite3.ToJulianDay(d(1))
+    'construct julian dates (for use in sqlite db)
+        jd0 = Sqlite3.ToJulianDay(d(0))
+        jd1 = Sqlite3.ToJulianDay(d(1))
     
     'construct query
-    qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
-        & jd0 _
-        & "' AND DateTime < '" _
-        & jd1 & "';"
+        qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
+            & jd0 _
+            & "' AND DateTime < '" _
+            & jd1 & "';"
     
-    'execute query
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-    ret = Sqlite3.SQLite3Step(handl)
+    'prepare and execute query
+        Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+        ret = Sqlite3.SQLite3Step(handl)
     
+    'set variables and loop query result
     d(0) = 0
     d(1) = 0
     in_window = False
@@ -263,32 +332,34 @@ Do Until rst.EOF
             rst!raw_windows = proj.NO_DATA_STRING
             GoTo next_treshold
         End If
+        'loop query records
         Do While ret = SQLITE_ROW
             'Store Values:
-            dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-            rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
-            'check if this rise is high enough:
-            If rise > needed_rise Then
-                If Not in_window Then
-                    d(0) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
-                    'switch flag
-                    in_window = True
+                dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
+                rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+            'check the rise
+                If rise > needed_rise Then
+                    If Not in_window Then
+                        d(0) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
+                        'switch flag
+                        in_window = True
+                    End If
+                Else
+                    If in_window Then
+                        d(1) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
+                        'store and set to 0
+                        c.Add d
+                        d(0) = 0
+                        d(1) = 0
+                        'switch flag
+                        in_window = False
+                    End If
                 End If
-            Else
-                If in_window Then
-                    d(1) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
-                    'store and set to 0
-                    c.Add d
-                    d(0) = 0
-                    d(1) = 0
-                    'switch flag
-                    in_window = False
-                End If
-            End If
             'store last values for interpolation
-            last_dt = dt
-            last_rise = rise
-            ret = Sqlite3.SQLite3Step(handl)
+                last_dt = dt
+                last_rise = rise
+            'move pointer to next record
+                ret = Sqlite3.SQLite3Step(handl)
         Loop
         'check if the last line of data from the database is not more than 15
         'from the end of the eval period. If so, the data has run out.
@@ -303,42 +374,45 @@ Do Until rst.EOF
         GoTo next_treshold
     End If
     
-    If d(0) <> 0 And d(1) = 0 Then
-        d(1) = last_dt
-        c.Add d
-    End If
-    
-    Sqlite3.SQLite3Finalize handl
+    'check if a window is still open when records ran out
+        If d(0) <> 0 And d(1) = 0 Then
+            d(1) = last_dt
+            c.Add d
+        End If
+    'finalize query
+        Sqlite3.SQLite3Finalize handl
     
 WriteWindows:
     'insert the frames into the database
     s = vbNullString
-    For i = 1 To c.Count
-        s = s & c(i)(0) & ","
-        s = s & c(i)(1) & ";"
-    Next i
+    'construct database string
+        For i = 1 To c.Count
+            s = s & c(i)(0) & ","
+            s = s & c(i)(1) & ";"
+        Next i
     'delete last ";"
-    If Len(s) > 1 Then s = Left(s, Len(s) - 1)
-    rst!raw_windows = s
-    rst.Update
+        If Len(s) > 1 Then s = Left(s, Len(s) - 1)
+    'insert string into database and update databse
+        rst!raw_windows = s
+        rst.Update
+    'move to next treshold
 next_treshold:
-    rst.MoveNext
+        rst.MoveNext
 Loop
 
 
 End Sub
 Private Function interpolate_date_based_on_draught(d0 As Date, d1 As Date, r0 As Double, r1 As Double, needed_rise As Double) As Date
 'returns the interpolated date based on the needed_rise
-If d0 = 0 Or r0 = 0 Then
-    interpolate_date_based_on_draught = d1
-Else
-    interpolate_date_based_on_draught = d0 + (((d1 - d0) * (needed_rise - r0)) / (r1 - r0))
-End If
-
+    If d0 = 0 Or r0 = 0 Then
+        interpolate_date_based_on_draught = d1
+    Else
+        interpolate_date_based_on_draught = d0 + (((d1 - d0) * (needed_rise - r0)) / (r1 - r0))
+    End If
 End Function
 
-Public Function sail_plan_raw_windows_collection(id As Long) As Collection
-'will load the raw windows of the sail plan into a collection
+Private Function sail_plan_raw_windows_collection(id As Long) As Collection
+'will load all the raw windows of the sail plan into a collection
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
@@ -347,32 +421,42 @@ Dim s As String
 Dim ss() As String
 Dim i As Long
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
+'setup connection and recordset
+    If conn Is Nothing Then
+        Call ado_db.connect_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
 
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
-Set sail_plan_raw_windows_collection = New Collection
+'setup and open query
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
 
-Do Until rst.EOF
-    s = rst!raw_windows
-    ss = Split(s, ";")
-    sail_plan_raw_windows_collection.Add ss
-    rst.MoveNext
-Loop
+'initialize collection
+    Set sail_plan_raw_windows_collection = New Collection
 
-rst.Close
-Set rst = Nothing
+'loop tresholds
+    Do Until rst.EOF
+        'get and split string
+        s = rst!raw_windows
+        ss = Split(s, ";")
+        'add the array to the collection
+        sail_plan_raw_windows_collection.Add ss
+        rst.MoveNext
+    Loop
 
-If connect_here Then Call ado_db.disconnect_ADO
+'close and null recordset and connection
+    rst.Close
+    Set rst = Nothing
+    
+    If connect_here Then Call ado_db.disconnect_ADO
 
 End Function
 
 Public Sub sail_plan_calculate_tidal_window(id As Long)
 'will loop the tresholds in the route to find the possible window
+'result is a global tidal window, which is valid for all tresholds
+'in the sail plan
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
@@ -385,52 +469,65 @@ Dim ETA0 As Date
 Dim eta As Date
 Dim v As Variant
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
+'setup connection and recordset
+    If conn Is Nothing Then
+        Call ado_db.connect_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
 
 'get raw windows collection
-Set windows = proj.sail_plan_raw_windows_collection(id)
+    Set windows = sail_plan_raw_windows_collection(id)
 
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
+'query sail plan
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
 
-If Not IsNull(rst!rta) Then
-    ETA0 = rst!rta
-Else
-    ETA0 = rst!local_eta
-End If
+'check if a rta is in force
+    If Not IsNull(rst!rta) Then
+        ETA0 = rst!rta
+    Else
+        ETA0 = rst!local_eta
+    End If
 
 'create endless loop
-Do While True
-    v = sail_plan_loop_check_tresholds(rst, ETA0, windows)
-    If Not IsArray(v) Then
-        ETA0 = 0
-        Exit Do
-    End If
-    eta = v(1)
-    If eta > ETA0 Then
-        ETA0 = eta
-    ElseIf eta = ETA0 Then
-        Exit Do
-    End If
-Loop
-
-If ETA0 <> 0 Then
-    'inset global window into database:
-    rst.MoveFirst
-    Do Until rst.EOF
-        rst!tidal_window_start = v(0) + rst!time_to_here
-        rst!tidal_window_end = v(2) + rst!time_to_here
-        rst.MoveNext
+    Do While True
+        'get valid eta on or after the given ETA0,
+        'valid on all tresholds.
+            v = sail_plan_loop_check_tresholds(rst, ETA0, windows)
+        'check if a valid eta and global window is returned
+            If Not IsArray(v) Then
+                ETA0 = 0
+                Exit Do
+            End If
+        'a valid window is returned
+        eta = v(1)
+        'check if the given eta is later than the initial eta.
+        'If so, check all tresholds again. If not, initial eta
+        'is valid and can be used.
+            If eta > ETA0 Then
+                ETA0 = eta
+            ElseIf eta = ETA0 Then
+                Exit Do
+            End If
     Loop
-End If
-rst.Close
-Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+'if a valid eta is returned, insert global window into database
+    If ETA0 <> 0 Then
+        'inset global window into database:
+        rst.MoveFirst
+        Do Until rst.EOF
+            rst!tidal_window_start = v(0) + rst!time_to_here
+            rst!tidal_window_end = v(2) + rst!time_to_here
+            rst.MoveNext
+        Loop
+    End If
+
+'close and null recordset and connection
+    rst.Close
+    Set rst = Nothing
+    
+    If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
 Public Function sail_plan_loop_check_tresholds(rst As ADODB.Recordset, ETA0 As Date, windows As Collection) As Variant
@@ -454,55 +551,67 @@ Dim in_current_window As Boolean
 rst.MoveFirst
 Do Until rst.EOF
 TryAgain:
-    eta = ETA0 + rst!time_to_here
-    'get first allowable eta on the treshold:
-    d = sail_plan_check_treshold_window(windows(i + 1), eta, rst!min_tidal_window_pre, rst!min_tidal_window_after, rst!rta)
-    If Not IsArray(d) Then
-        'there is no tidal window available
-        Exit Function
-    End If
-    'evaluate outcome
-    If d(1) > eta Then
-        'return the new eta and global window
-        sail_plan_loop_check_tresholds = Array(d(0) - rst!time_to_here, d(1) - rst!time_to_here, d(2) - rst!time_to_here)
-        Exit Function
-    Else
+    'construct eta to calculate
+        eta = ETA0 + rst!time_to_here
+    'get first allowable eta on the treshold (will return this eta if it fits into a window) and the window around it
+        d = sail_plan_check_treshold_window(windows(i + 1), eta, rst!min_tidal_window_pre, rst!min_tidal_window_after, rst!rta)
+    'if no array is returned, there is no window available on or after this eta for this treshold
+        If Not IsArray(d) Then
+            'there is no tidal window available
+            Exit Function
+        End If
+    'check if found eta is bigger (later) than the current eta.
+    'If so, the process should start again.
+        If d(1) > eta Then
+            'return the new eta and global window
+            sail_plan_loop_check_tresholds = _
+                Array(d(0) - rst!time_to_here, _
+                        d(1) - rst!time_to_here, _
+                        d(2) - rst!time_to_here)
+            Exit Function
+        End If
+    'current eta is still valid.
+    'store global window start and end, if it is more restricting than the current global window
         If d(0) - rst!time_to_here > gl_win_start Then gl_win_start = d(0) - rst!time_to_here
         If d(2) - rst!time_to_here < gl_win_end Or gl_win_end = 0 Then gl_win_end = d(2) - rst!time_to_here
-    End If
-    If rst!current_window And Not IsArray(gl_cur_win_start) Then
-        'determine global current windows
-        ss1 = Split(rst!raw_current_windows, ";")
-        ReDim gl_cur_win_start(0 To UBound(ss1)) As Date
-        ReDim gl_cur_win_end(0 To UBound(ss1)) As Date
-        For ii = 0 To UBound(ss1)
-            ss2 = Split(ss1(ii), ",")
-            gl_cur_win_start(ii) = CDate(ss2(0)) - rst!time_to_here
-            gl_cur_win_end(ii) = CDate(ss2(1)) - rst!time_to_here
-        Next ii
-    End If
-    'check if current windows are available
-    If IsArray(gl_cur_win_start) Then
-        in_current_window = False
-        'check if any part of the current window is in the tidal window (both global)
-        For ii = 0 To UBound(gl_cur_win_start)
-            If gl_cur_win_start(ii) >= gl_win_start And gl_cur_win_start(ii) <= gl_win_end Or _
-                    gl_cur_win_end(ii) >= gl_win_start And gl_cur_win_end(ii) <= gl_win_end Then
-                in_current_window = True
-                Exit For
-            End If
-        Next ii
-        If Not in_current_window Then
-            ETA0 = gl_win_end
-            GoTo TryAgain
+    
+    'parse current windows if there is one in force
+        If rst!current_window And Not IsArray(gl_cur_win_start) Then
+            'determine global current windows for this treshold
+            'and store in array
+            ss1 = Split(rst!raw_current_windows, ";")
+            ReDim gl_cur_win_start(0 To UBound(ss1)) As Date
+            ReDim gl_cur_win_end(0 To UBound(ss1)) As Date
+            For ii = 0 To UBound(ss1)
+                ss2 = Split(ss1(ii), ",")
+                gl_cur_win_start(ii) = CDate(ss2(0)) - rst!time_to_here
+                gl_cur_win_end(ii) = CDate(ss2(1)) - rst!time_to_here
+            Next ii
         End If
-    End If
-            
+    
+    'check if current windows are available
+        If IsArray(gl_cur_win_start) Then
+            in_current_window = False
+            'check if any part of the current window is in the tidal window (both global)
+            For ii = 0 To UBound(gl_cur_win_start)
+                If gl_cur_win_start(ii) >= gl_win_start And gl_cur_win_start(ii) <= gl_win_end Or _
+                        gl_cur_win_end(ii) >= gl_win_start And gl_cur_win_end(ii) <= gl_win_end Then
+                    in_current_window = True
+                    Exit For
+                End If
+            Next ii
+            If Not in_current_window Then
+                ETA0 = gl_win_end
+                GoTo TryAgain
+            End If
+        End If
     i = i + 1
+    'next treshold
     rst.MoveNext
 Loop
 
-sail_plan_loop_check_tresholds = Array(gl_win_start, ETA0, gl_win_end)
+'all tresholds are checked, the global window and eta are returned
+    sail_plan_loop_check_tresholds = Array(gl_win_start, ETA0, gl_win_end)
 
 End Function
 Public Function sail_plan_check_treshold_window(windows As Variant, eta As Date, min_pre As Date, min_aft As Date, rta As Variant) As Variant
@@ -515,161 +624,38 @@ Dim i As Long
 'loop windows for this treshold
 For i = 0 To UBound(windows)
     'check if there is data at all
-    If windows(i) = proj.NO_DATA_STRING Then Exit For
-    ss = Split(windows(i), ",")
+        If windows(i) = proj.NO_DATA_STRING Then Exit For
+    'parse window
+        ss = Split(windows(i), ",")
     'check if the window is before the eta as a whole. If so, skip.
-    If CDate(ss(1)) - min_aft < eta Then GoTo NextWindow
+        If CDate(ss(1)) - min_aft < eta Then GoTo NextWindow
     'check if window is long enough. If not, skip.
-    If CDate(ss(1)) - CDate(ss(0)) < min_pre + min_aft Then GoTo NextWindow
-    If Not IsNull(rta) Then
-        'if the start of the window is after the rta, exit
-        If CDate(ss(0)) + min_pre > rta Then Exit For
-        'if the end of window if before the rta, goto next
-        If CDate(ss(1)) - min_aft < rta Then GoTo NextWindow
-    End If
-    If CDate(ss(0)) + min_pre <= eta Then
-        'eta is allowed, return eta
-        sail_plan_check_treshold_window = Array(CDate(ss(0)), eta, CDate(ss(1)))
-        Exit Function
-    Else
-        'eta is not allowed. Return first eta.
-        sail_plan_check_treshold_window = Array(CDate(ss(0)), CDate(ss(0)) + min_pre, CDate(ss(1)))
-        Exit Function
-    End If
+        If CDate(ss(1)) - CDate(ss(0)) < min_pre + min_aft Then GoTo NextWindow
+    'check if a rta is in force
+        If Not IsNull(rta) Then
+            'if the start of the window is after the rta, exit
+                If CDate(ss(0)) + min_pre > rta Then Exit For
+            'if the end of window if before the rta, goto next
+                If CDate(ss(1)) - min_aft < rta Then GoTo NextWindow
+        End If
+    'check if eta is allowed
+        If CDate(ss(0)) + min_pre <= eta Then
+            'eta is allowed, return eta
+            sail_plan_check_treshold_window = Array(CDate(ss(0)), eta, CDate(ss(1)))
+            Exit Function
+        Else
+            'eta is not allowed. Return first available eta, which is the start of the window
+            'plus the minimal window before the eta.
+            sail_plan_check_treshold_window = Array(CDate(ss(0)), CDate(ss(0)) + min_pre, CDate(ss(1)))
+            Exit Function
+        End If
 NextWindow:
 Next i
 End Function
-Public Function check_tidal_window(eta As Date) As Variant
-'will loop the route points in the route collection to check the
-'eta for a valid tidal window. If eta is a valid window, it will
-'return True. If not, it will return a date that holds the first
-'possibility for testing. If the eta cannot return a valid window
-'(because it will run out of the evaluated time frame) it will
-'return false
-Dim rp As cls_route_point
-Dim d As Date
-Dim i As Long
 
-For i = 1 To route.Count
-    Set rp = route(i)
-    'check if this global eta is in a valid window
-    'if not, return the first possible global eta
-    If Not rp.is_in_valid_window(eta) Then
-        'return the response if it is a date.
-        'if not, return false
-        d = rp.global_eta_for_first_possible_window_after_eta(eta)
-        If d > 0 Then
-            check_tidal_window = d
-        Else
-            check_tidal_window = False
-        End If
-        Exit Function
-    End If
-    Set rp = Nothing
-Next i
-
-'if the whole loop is finished, the eta is valid
-check_tidal_window = True
-
-End Function
-Public Sub sail_plan_edit_plan(id As Long)
-'load the sail plan form and load data for the selected sail plan
-Dim rst As ADODB.Recordset
-Dim qstr As String
-Dim connect_here As Boolean
-Dim ss() As String
-Dim ctr As MSForms.Control
-
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-
-Set rst = ado_db.ADO_RST
-
-Call proj.sail_plan_form_load(Show:=False)
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
-
-With sail_plan_edit_form
-    .ships_cb.Value = rst!ship_naam
-    .TextBox2 = rst!ship_callsign
-    .TextBox3 = rst!ship_imo
-    .TextBox4 = rst!ship_loa
-    .TextBox5 = rst!ship_boa
-    .TextBox6 = rst!ship_draught
-    .ship_types_cb.Value = rst!ship_type
-    'speeds
-    ss = Split(rst!ship_speeds, ";")
-    For Each ctr In .speedframe.Controls
-        If TypeName(ctr) = "TextBox" Then
-            ctr.text = ss(CLng(Replace(ctr.Name, "speed_", vbNullString)))
-        End If
-    Next ctr
-    .routes_cb.Value = rst!route_naam
-    .window_pre_tb = Format(rst!min_tidal_window_pre, "hh:nn")
-    .window_after_tb = Format(rst!min_tidal_window_after, "hh:nn")
-    .eta_date_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "dd-mm-yyyy")
-    .eta_time_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "hh:nn")
-    'loop all tresholds to fill route_lb and check for
-    'current window or rta
-    Do Until rst.EOF
-        If rst!current_window Then
-            'current window is in force
-            .current_ob = True
-            'positive value is after the hw, negative is before
-            .current_after_tb = Format(rst!current_window_after, "hh:nn")
-            If rst!current_window_after_positive Then
-                .current_after_cb.Value = "na"
-            Else
-                .current_after_cb.Value = "voor"
-            End If
-            .current_before_tb = Format(rst!current_window_pre, "hh:nn")
-            If rst!current_window_pre_positive Then
-                .current_before_cb.Value = "na"
-            Else
-                .current_before_cb.Value = "voor"
-            End If
-            .current_tresholds_cb.Value = rst!treshold_name
-            .hw_list_cb.Value = rst!current_window_data_point
-        End If
-        If rst!rta_treshold Then
-            'rta is in force
-            .rta_ob = True
-            .rta_date_tb = Format(DST_GMT.ConvertToLT(rst!rta), "d-m-yyyy")
-            .rta_time_tb = Format(DST_GMT.ConvertToLT(rst!rta), "hh:nn")
-            .rta_tresholds_cb.Value = rst!treshold_name
-        End If
-        .route_lb.List(rst!treshold_index * 2, 1) = rst!UKC_value & rst!UKC_unit
-        .route_lb.List(rst!treshold_index * 2, 4) = Format(rst!min_tidal_window_after, "hh:nn")
-        .route_lb.List(rst!treshold_index * 2, 5) = Format(rst!min_tidal_window_pre, "hh:nn")
-        If rst!treshold_index > 0 Then
-            .route_lb.List(rst!treshold_index * 2 - 1, 2) = ado_db.get_table_name_from_id(rst!ship_speed_id, "speeds")
-            .route_lb.List(rst!treshold_index * 2 - 1, 3) = rst!distance_to_here
-        End If
-        
-        rst.MoveNext
-    Loop
-    .Show
-End With
-
-rst.Close
-Set rst = Nothing
-
-'remove the sail plan from the database, but only if cancel is not clicked.
-If Not aux.form_is_loaded("sail_plan") Then
-    'remove
-    conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
-    'update gui
-    Call ws_gui.build_sail_plan_list
-Else
-    'form is still loaded (hidden). Unload.
-    Unload sail_plan_edit_form
-End If
-
-If connect_here Then Call ado_db.disconnect_ADO
-
-End Sub
+'***********************
+'sail plan form routines
+'***********************
 Public Sub sail_plan_form_load(Optional Show As Boolean = True)
 'load the sail_plan form
 Dim rst As ADODB.Recordset
@@ -804,6 +790,111 @@ EndSub:
 If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
+
+Public Sub sail_plan_edit_plan(id As Long)
+'load the sail plan form and load data for the selected sail plan
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim ss() As String
+Dim ctr As MSForms.Control
+
+'setup connection and recordset
+    If conn Is Nothing Then
+        Call ado_db.connect_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
+
+'load form, but do not show
+    Call proj.sail_plan_form_load(Show:=False)
+
+'query sail plan
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
+
+'inject values into form
+    With sail_plan_edit_form
+        'ship variables
+            .ships_cb.Value = rst!ship_naam
+            .TextBox2 = rst!ship_callsign
+            .TextBox3 = rst!ship_imo
+            .TextBox4 = rst!ship_loa
+            .TextBox5 = rst!ship_boa
+            .TextBox6 = rst!ship_draught
+            .ship_types_cb.Value = rst!ship_type
+        'speeds
+            ss = Split(rst!ship_speeds, ";")
+            For Each ctr In .speedframe.Controls
+                If TypeName(ctr) = "TextBox" Then
+                    ctr.text = ss(CLng(Replace(ctr.Name, "speed_", vbNullString)))
+                End If
+            Next ctr
+        'route and window variables
+            .routes_cb.Value = rst!route_naam
+            .window_pre_tb = Format(rst!min_tidal_window_pre, "hh:nn")
+            .window_after_tb = Format(rst!min_tidal_window_after, "hh:nn")
+            .eta_date_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "dd-mm-yyyy")
+            .eta_time_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "hh:nn")
+        'loop all tresholds to fill route_lb and check for
+        'current window or rta
+            Do Until rst.EOF
+                If rst!current_window Then
+                    'current window is in force
+                    .current_ob = True
+                    'positive value is after the hw, negative is before
+                    .current_after_tb = Format(rst!current_window_after, "hh:nn")
+                    If rst!current_window_after_positive Then
+                        .current_after_cb.Value = "na"
+                    Else
+                        .current_after_cb.Value = "voor"
+                    End If
+                    .current_before_tb = Format(rst!current_window_pre, "hh:nn")
+                    If rst!current_window_pre_positive Then
+                        .current_before_cb.Value = "na"
+                    Else
+                        .current_before_cb.Value = "voor"
+                    End If
+                    .current_tresholds_cb.Value = rst!treshold_name
+                    .hw_list_cb.Value = rst!current_window_data_point
+                End If
+                If rst!rta_treshold Then
+                    'rta is in force
+                    .rta_ob = True
+                    .rta_date_tb = Format(DST_GMT.ConvertToLT(rst!rta), "d-m-yyyy")
+                    .rta_time_tb = Format(DST_GMT.ConvertToLT(rst!rta), "hh:nn")
+                    .rta_tresholds_cb.Value = rst!treshold_name
+                End If
+                .route_lb.List(rst!treshold_index * 2, 1) = rst!UKC_value & rst!UKC_unit
+                .route_lb.List(rst!treshold_index * 2, 4) = Format(rst!min_tidal_window_after, "hh:nn")
+                .route_lb.List(rst!treshold_index * 2, 5) = Format(rst!min_tidal_window_pre, "hh:nn")
+                If rst!treshold_index > 0 Then
+                    .route_lb.List(rst!treshold_index * 2 - 1, 2) = ado_db.get_table_name_from_id(rst!ship_speed_id, "speeds")
+                    .route_lb.List(rst!treshold_index * 2 - 1, 3) = rst!distance_to_here
+                End If
+                
+                rst.MoveNext
+            Loop
+        .Show
+    End With
+
+rst.Close
+Set rst = Nothing
+
+'remove the sail plan from the database, but only if cancel is not clicked.
+If Not aux_.form_is_loaded("sail_plan") Then
+    'remove
+    conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+    'update gui
+    Call ws_gui.build_sail_plan_list
+Else
+    'form is still loaded (hidden). Unload.
+    Unload sail_plan_edit_form
+End If
+
+If connect_here Then Call ado_db.disconnect_ADO
+
+End Sub
 Public Function sail_plan_form_ship_id() As Long
 'will search for a ship in the database and add one if needed.
 Dim sh_name As String
@@ -830,7 +921,7 @@ With sail_plan_edit_form
     rst!loa = val(.TextBox4)
     rst!boa = val(.TextBox5)
     rst!ship_type_id = .ship_types_cb.List(.ship_types_cb.ListIndex, 1)
-    rst!speeds = aux.convert_array_to_seperated_string(proj.sail_plan_form_get_speeds_array, ";")
+    rst!speeds = aux_.convert_array_to_seperated_string(proj.sail_plan_form_get_speeds_array, ";")
     sail_plan_form_ship_id = rst!id
     rst.Update
     rst.Close
@@ -941,7 +1032,7 @@ With sail_plan_edit_form
                             loa:=CDbl(Replace(.TextBox4, ".", ",")), _
                             boa:=CDbl(Replace(.TextBox5, ".", ",")), _
                             ship_type_id:=.ship_types_cb.List(.ship_types_cb.ListIndex, 1), _
-                            speeds:=aux.convert_array_to_seperated_string(speeds, ";"))
+                            speeds:=aux_.convert_array_to_seperated_string(speeds, ";"))
     
     qstr = "SELECT * FROM routes WHERE id = " & route_id & " ORDER BY treshold_index;"
     rst1.Open qstr
@@ -1036,7 +1127,7 @@ With sail_plan_edit_form
                 rst3!current_window_data_point = .hw_list_cb
             End If
         End If
-        rst3!ship_speeds = aux.convert_array_to_seperated_string(speeds, ";")
+        rst3!ship_speeds = aux_.convert_array_to_seperated_string(speeds, ";")
 
         rst1.MoveNext
     Loop
@@ -1115,145 +1206,7 @@ rst.Close
 Set rst = Nothing
 
 End Sub
-Public Sub sail_plan_db_fill_in_current_window(id As Long)
-'will find the current window and insert the raw current windows
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
-Dim start_frame As Date
-Dim end_frame As Date
-Dim jd0 As Double
-Dim jd1 As Double
-Dim handl As Long
-Dim ret As Long
-Dim dt As Date
-Dim s As String
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
-
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' AND current_window = true;"
-rst.Open qstr
-
-If rst.RecordCount = 0 Then GoTo exitsub
-
-start_frame = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 0)
-end_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 0)
-
-'construct julian dates:
-jd0 = Sqlite3.ToJulianDay(start_frame)
-jd1 = Sqlite3.ToJulianDay(end_frame)
-
-'construct query
-qstr = "SELECT * FROM " & rst!current_window_data_point & "_hw WHERE DateTime > '" _
-    & jd0 _
-    & "' AND DateTime < '" _
-    & jd1 & "';"
-
-'execute query
-Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-ret = Sqlite3.SQLite3Step(handl)
-
-If ret = SQLITE_ROW Then
-    Do While ret = SQLITE_ROW
-        'Store Values:
-        dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-        If rst!current_window_pre_positive Then
-            s = s & CDate(dt + rst!current_window_pre) & ","
-        Else
-            s = s & CDate(dt - rst!current_window_pre) & ","
-        End If
-        If rst!current_window_after_positive Then
-            s = s & CDate(dt + rst!current_window_after) & ";"
-        Else
-            s = s & CDate(dt - rst!current_window_after) & ";"
-        End If
-        ret = Sqlite3.SQLite3Step(handl)
-    Loop
-    If Len(s) > 0 Then s = Left(s, Len(s) - 1)
-    rst!raw_current_windows = s
-    rst.Update
-End If
-
-Sqlite3.SQLite3Finalize handl
-
-exitsub:
-rst.Close
-Set rst = Nothing
-
-If connect_here Then Call ado_db.disconnect_ADO
-
-End Sub
-Public Sub sail_plan_db_fill_in_rta(id As Long)
-'will find the rta value for the route and extrapolate the data to the other tresholds
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
-Dim rta_start As Date
-
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
-
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "';"
-rst.Open qstr
-
-Do Until rst.EOF
-    If rst!rta_treshold Then
-        rta_start = rst!rta - rst!time_to_here
-        Exit Do
-    End If
-    rst.MoveNext
-Loop
-If rta_start = 0 Then Exit Sub
-rst.MoveFirst
-Do Until rst.EOF
-    rst!rta = rta_start + rst!time_to_here
-    rst.MoveNext
-Loop
-
-rst.Close
-Set rst = Nothing
-
-If connect_here Then Call ado_db.disconnect_ADO
-
-End Sub
-Public Sub sail_plan_db_set_ship_draught_and_ukc(id As Long, draught As Double)
-'will set a ship draught for the sail plan 'id' and calculate the ukc's
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
-
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
-
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "';"
-rst.Open qstr
-
-Do Until rst.EOF
-    rst!ship_draught = draught
-    If rst!UKC_unit = "m" Then
-        rst!ukc = rst!UKC_value * 10
-    Else
-        rst!ukc = rst!UKC_value * draught / 100
-    End If
-    rst.MoveNext
-Loop
-
-rst.Close
-Set rst = Nothing
-
-If connect_here Then Call ado_db.disconnect_ADO
-
-End Sub
 Public Sub sail_plan_form_set_sail_plan_edit_mode()
 'set the edit mode. On even numbers it is speed, on odd numbers UKC
 Dim s As String
@@ -1454,6 +1407,155 @@ With sail_plan_edit_form
 End With
 
 End Sub
+
+'***************************
+'sail plan database routines
+'***************************
+
+Public Sub sail_plan_db_fill_in_current_window(id As Long)
+'will find the current window and insert the raw current windows
+Dim connect_here As Boolean
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim start_frame As Date
+Dim end_frame As Date
+Dim jd0 As Double
+Dim jd1 As Double
+Dim handl As Long
+Dim ret As Long
+Dim dt As Date
+Dim s As String
+
+If conn Is Nothing Then
+    Call ado_db.connect_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' AND current_window = true;"
+rst.Open qstr
+
+If rst.RecordCount = 0 Then GoTo exitsub
+
+start_frame = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 0)
+end_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 0)
+
+'construct julian dates:
+jd0 = Sqlite3.ToJulianDay(start_frame)
+jd1 = Sqlite3.ToJulianDay(end_frame)
+
+'construct query
+qstr = "SELECT * FROM " & rst!current_window_data_point & "_hw WHERE DateTime > '" _
+    & jd0 _
+    & "' AND DateTime < '" _
+    & jd1 & "';"
+
+'execute query
+Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+ret = Sqlite3.SQLite3Step(handl)
+
+If ret = SQLITE_ROW Then
+    Do While ret = SQLITE_ROW
+        'Store Values:
+        dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
+        If rst!current_window_pre_positive Then
+            s = s & CDate(dt + rst!current_window_pre) & ","
+        Else
+            s = s & CDate(dt - rst!current_window_pre) & ","
+        End If
+        If rst!current_window_after_positive Then
+            s = s & CDate(dt + rst!current_window_after) & ";"
+        Else
+            s = s & CDate(dt - rst!current_window_after) & ";"
+        End If
+        ret = Sqlite3.SQLite3Step(handl)
+    Loop
+    If Len(s) > 0 Then s = Left(s, Len(s) - 1)
+    rst!raw_current_windows = s
+    rst.Update
+End If
+
+Sqlite3.SQLite3Finalize handl
+
+exitsub:
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_ADO
+
+End Sub
+Public Sub sail_plan_db_fill_in_rta(id As Long)
+'will find the rta value for the route and extrapolate the data to the other tresholds
+Dim connect_here As Boolean
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim rta_start As Date
+
+If conn Is Nothing Then
+    Call ado_db.connect_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "';"
+rst.Open qstr
+
+Do Until rst.EOF
+    If rst!rta_treshold Then
+        rta_start = rst!rta - rst!time_to_here
+        Exit Do
+    End If
+    rst.MoveNext
+Loop
+If rta_start = 0 Then Exit Sub
+rst.MoveFirst
+Do Until rst.EOF
+    rst!rta = rta_start + rst!time_to_here
+    rst.MoveNext
+Loop
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_ADO
+
+End Sub
+Public Sub sail_plan_db_set_ship_draught_and_ukc(id As Long, draught As Double)
+'will set a ship draught for the sail plan 'id' and calculate the ukc's
+Dim connect_here As Boolean
+Dim rst As ADODB.Recordset
+Dim qstr As String
+
+If conn Is Nothing Then
+    Call ado_db.connect_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "';"
+rst.Open qstr
+
+Do Until rst.EOF
+    rst!ship_draught = draught
+    If rst!UKC_unit = "m" Then
+        rst!ukc = rst!UKC_value * 10
+    Else
+        rst!ukc = rst!UKC_value * draught / 100
+    End If
+    rst.MoveNext
+Loop
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_ADO
+
+End Sub
+
+'********************
+'routes form routines
+'********************
+
 Public Sub routes_form_load()
 'load the routes_edit form
 Dim rst As ADODB.Recordset
@@ -2075,6 +2177,11 @@ With routes_edit_form.routes_lb
     Next i
 End With
 End Sub
+
+'************************
+'connection form routines
+'************************
+
 Public Sub connection_form_load()
 'load the connections edit form
 Dim rst As ADODB.Recordset
@@ -2305,6 +2412,11 @@ Call connection_form_fill_conn_lb
 If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
+
+'**********************
+'treshold form routines
+'**********************
+
 Public Sub treshold_form_load()
 'load the treshold edit form and fill the listboxes and comboboxes
 Dim rst As ADODB.Recordset
@@ -2534,6 +2646,10 @@ End With
 If connect_here Then Call ado_db.disconnect_ADO
 
 End Sub
+
+'***********************
+'ship type form routines
+'***********************
 
 Public Sub ship_type_form_load()
 'load the treshold edit form and fill the listboxes and comboboxes
@@ -2802,190 +2918,7 @@ With ship_types_edit_form
     Next i
 End With
 End Sub
-'
-'Public Sub run_request_from_wb(workbook_name As String, worksheet_name As String, range_name As String)
-''this sub will receive a run request from an opened workbook
-''as arguments the workbook name and the range name are accepted
-'PROGRAM_STATE = RUNNING
-'Set active_wb = Application.Workbooks(workbook_name)
-'Set Gvar = New cls_Globals
-'
-'Debug.Print "called from", active_wb.Name
-'
-'Set Gvar = Nothing
-'active_wb = vbNullString
-'PROGRAM_STATE = IDLE
-'End Sub
 
-Private Sub calculate_tidal_windows()
-Const TableStartRow As Long = 23
-Const SummaryStartRow As Long = 18
-
-On Error GoTo ExitFunc
-Dim rw As Long
-Dim RoutePoint As cls_TidalWindows
-
-Gvar.HaveTidalRestrictions = False
-
-With Gvar.VaarplanSheet
-    'display route name:
-    .Cells(SummaryStartRow, 5) = "Route:"
-    .Cells(SummaryStartRow, 6) = Gvar.RouteNaam
-    
-    If Gvar.haveWindow Then
-        'check if there are tidal restrictions:
-        For Each RoutePoint In Gvar.route
-            If RoutePoint.HasLimitations Then
-                Gvar.HaveTidalRestrictions = True
-                Exit For
-            End If
-        Next RoutePoint
-        If Gvar.HaveTidalRestrictions Then
-            .Range("Vaarplan").Value = "Ja"
-            'show the found tidal window in the graph:
-            Call DrawPath
-            Call DrawTimeLabels
-            'show table of ETA's:
-            
-            .Cells(TableStartRow + rw, 2) = "begin"
-            .Cells(TableStartRow + rw, 6) = "eind"
-            .Cells(TableStartRow + rw, 6).HorizontalAlignment = xlRight
-            .Range(.Cells(TableStartRow + rw, 2), .Cells(TableStartRow + rw, 3)).Interior.Color = 11854022
-            .Range(.Cells(TableStartRow + rw, 5), .Cells(TableStartRow + rw, 6)).Interior.Color = 11854022
-            
-            rw = rw + 1
-            
-            .Cells(TableStartRow + rw, 1) = "Drempel"
-            .Cells(TableStartRow + rw, 2) = "Lokale tijpoort"
-            .Cells(TableStartRow + rw, 3) = "Globale tijpoort"
-            If CalcLT(Gvar.rta) > 0 Then
-                .Cells(TableStartRow + rw, 4) = "Gewenste tijd"
-            End If
-            .Cells(TableStartRow + rw, 5) = "Globale tijpoort"
-            .Cells(TableStartRow + rw, 6) = "Lokale tijpoort"
-            
-            'set bold:
-            .Range(.Cells(TableStartRow + rw, 1), .Cells(TableStartRow + rw, 6)).font.Bold = True
-                        With .Range(.Cells(TableStartRow + 1, 1), .Cells(TableStartRow + 1, 6))
-                .Borders(xlEdgeBottom).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlEdgeBottom).Weight = 3
-            End With
-            
-            'set colors
-            With .Range(.Cells(TableStartRow + 2, 1), .Cells(TableStartRow + Gvar.route.Count + 1, 6))
-                .Borders(xlInsideHorizontal).LineStyle = XlLineStyle.xlDot
-            End With
-            With .Range(.Cells(TableStartRow + 1, 2), .Cells(TableStartRow + Gvar.route.Count + 1, 2))
-                .Interior.Color = 14998742
-            End With
-            With .Range(.Cells(TableStartRow + 1, 3), .Cells(TableStartRow + Gvar.route.Count + 1, 3))
-                .Interior.Color = 11389944
-            End With
-            With .Range(.Cells(TableStartRow + 1, 4), .Cells(TableStartRow + Gvar.route.Count + 1, 4))
-                .Interior.Color = 15123099
-            End With
-            With .Range(.Cells(TableStartRow + 1, 5), .Cells(TableStartRow + Gvar.route.Count + 1, 5))
-                .Interior.Color = 11389944
-            End With
-            With .Range(.Cells(TableStartRow + 1, 6), .Cells(TableStartRow + Gvar.route.Count + 1, 6))
-                .Interior.Color = 14998742
-            End With
-
-            rw = rw + 1
-            For Each RoutePoint In Gvar.route
-                'fill in name:
-                .Cells(TableStartRow + rw, 1) = RoutePoint.Name
-                'color the 'CP' treshold WARNING: HARDCODED ROUTEPOINT NAME!!!
-                If RoutePoint.Name = "CP" Then
-                    .Cells(TableStartRow + rw, 1).Interior.Color = 9359529
-                End If
-                'only fill data if there is a tidal window:
-                If RoutePoint.HasLimitations Then
-                    'start and end of window:
-                    .Cells(TableStartRow + rw, 2) = CalcLT(RoutePoint.StartOfCurrentWindow)
-                    .Cells(TableStartRow + rw, 6) = CalcLT(RoutePoint.EndOfCurrentWindow)
-                    'check if this waypoint is limiting for the route:
-                    If RoutePoint.IsLimitingForStart Then
-                        With Range(.Cells(TableStartRow + rw, 2), .Cells(TableStartRow + rw, 3))
-                            .font.Bold = True
-                            .Interior.Color = 65535
-                        End With
-                    End If
-                    If RoutePoint.IsLimitingForEnd Then
-                        With Range(.Cells(TableStartRow + rw, 5), .Cells(TableStartRow + rw, 6))
-                            .font.Bold = True
-                            .Interior.Color = 65535
-                        End With
-                        
-                    End If
-                Else
-                    .Cells(TableStartRow + rw, 2) = "Geen tijpoort"
-                    .Cells(TableStartRow + rw, 6) = "Geen tijpoort"
-                End If
-                
-                .Cells(TableStartRow + rw, 3) = CalcLT(RoutePoint.GWindowStart)
-                'last possible passage time:
-                .Cells(TableStartRow + rw, 5) = CalcLT(RoutePoint.GWindowEnd)
-                'desired time of arrival
-                If CalcLT(Gvar.rta) > 0 Then
-                    .Cells(TableStartRow + rw, 4) = CalcLT(RoutePoint.DesiredETA)
-                End If
-                
-                rw = rw + 1
-            Next RoutePoint
-
-            With .Range(.Cells(TableStartRow + 1, 3), .Cells(TableStartRow + Gvar.route.Count + 1, 5))
-                .Borders(xlEdgeTop).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlEdgeTop).Weight = 3
-                .Borders(xlEdgeLeft).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlEdgeLeft).Weight = 3
-                .Borders(xlEdgeRight).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlEdgeRight).Weight = 3
-                .Borders(xlEdgeBottom).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlEdgeBottom).Weight = 3
-            End With
-            
-            'fill summary
-            .Cells(SummaryStartRow - 1, 1) = "Gevonden Tijpoort:"
-            .Cells(SummaryStartRow + 1, 1) = "Vertrek:"
-            .Cells(SummaryStartRow + 1, 2) = "van:"
-            .Cells(SummaryStartRow + 1, 3) = "tot:"
-            .Cells(SummaryStartRow + 1, 4) = "duur:"
-            
-            .Cells(SummaryStartRow + 2, 1) = Gvar.route(1).Name
-            .Cells(SummaryStartRow + 2, 2) = CalcLT(Gvar.route(1).GWindowStart)
-            .Cells(SummaryStartRow + 2, 3) = CalcLT(Gvar.route(1).GWindowEnd)
-            .Cells(SummaryStartRow + 2, 4) = TimeDiffHours(Gvar.route(1).GWindowStart, Gvar.route(1).GWindowEnd)
-            
-            'format summary
-            .Range(.Cells(SummaryStartRow - 1, 1), .Cells(SummaryStartRow + 2, 6)).Interior.Color = 6740479
-            With .Range(.Cells(SummaryStartRow + 1, 1), .Cells(SummaryStartRow + 2, 4))
-                .Borders(xlInsideHorizontal).LineStyle = XlLineStyle.xlDot
-                .Borders(xlInsideVertical).LineStyle = XlLineStyle.xlContinuous
-                .Borders(xlInsideVertical).Weight = 3
-            End With
-                
-        Else
-            .Range("Vaarplan").Value = "Nee"
-            .Cells(SummaryStartRow - 1, 1) = "Tijongebonden"
-            .Range(.Cells(SummaryStartRow - 1, 1), .Cells(SummaryStartRow, 6)).Interior.Color = 11389944
-        End If
-            
-    Else
-        .Cells(SummaryStartRow - 1, 1) = "Geen tijpoort mogelijk in deze evaluatieperiode"
-        .Range(.Cells(SummaryStartRow - 1, 1), .Cells(SummaryStartRow, 6)).Interior.Color = 15652797
-    End If
-    .Cells(SummaryStartRow - 1, 1).font.Bold = True
-    .Cells(SummaryStartRow - 1, 1).font.Size = 14
-
-End With
-
-WriteWindows = True
-
-ExitFunc:
-
-
-End Sub
 
 '*******************************************************************
 'tidal tables and graphs export subs. Tidal graph export not in use.

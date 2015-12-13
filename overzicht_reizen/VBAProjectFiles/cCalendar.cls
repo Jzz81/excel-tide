@@ -867,7 +867,7 @@ Public Sub Move( _
         Optional vHeight, _
         Optional vLayout)
         
-    Dim i As Long, L As Currency, B As Currency, lc As Currency, bc As Currency
+    Dim i As Long, l As Currency, B As Currency, lc As Currency, bc As Currency
     Dim t As Long, b_ym As Currency, b_combo_m As Currency
     
     Const h_combo As Long = 16
@@ -884,10 +884,10 @@ Public Sub Move( _
             sPHeight = IIf(IsMissing(vHeight), IIf(Height = -1, .Height, Height), vHeight)
             sPWidth = IIf(IsMissing(vWidth), IIf(Width = -1, .Width, Width), vWidth)
             
-            L = Height
+            l = Height
             B = Width
-            L = Zero_Negative_Value(L - IIf(ShowTitle Or ShowDateSelectors, h_combo, 0) - 1)
-            lc = CCur(L / t)
+            l = Zero_Negative_Value(l - IIf(ShowTitle Or ShowDateSelectors, h_combo, 0) - 1)
+            lc = CCur(l / t)
             bc = CCur(B / 7)
             B = bc * 7
         End With
@@ -1156,7 +1156,7 @@ End Sub
 '# Private Function
 
 Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
-    Dim v(0 To 41) As Date, i As Long, G As Long, L As Long, p As Long, t As Date
+    Dim v(0 To 41) As Date, i As Long, G As Long, l As Long, p As Long, t As Date
     
     i = VBA.DateTime.Weekday(VBA.DateSerial(lYear, lMonth, 1), 1 + lPFirstDay Mod 7) - 1
     
@@ -1165,28 +1165,28 @@ Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
     G = VBA.Day(VBA.DateSerial(lYear, lMonth + 1, 0)) + i
     
     p = 1
-    For L = i To 0 Step -1
-        v(L) = VBA.DateSerial(lYear, lMonth, p)
+    For l = i To 0 Step -1
+        v(l) = VBA.DateSerial(lYear, lMonth, p)
         p = p - 1
     Next
     
     p = 0
-    For L = i To G
+    For l = i To G
         p = p + 1
-        v(L) = VBA.DateSerial(lYear, lMonth, p)
+        v(l) = VBA.DateSerial(lYear, lMonth, p)
     Next
     
-    For L = G To 41
-        v(L) = VBA.DateSerial(lYear, lMonth, p)
+    For l = G To 41
+        v(l) = VBA.DateSerial(lYear, lMonth, p)
         p = p + 1
     Next
     
     If bPRightToLeft Then
-        For L = 0 To 5
+        For l = 0 To 5
             For i = 0 To 2
-                t = v(L * 7 + i)
-                v(L * 7 + i) = v(L * 7 + (6 - i))
-                v(L * 7 + (6 - i)) = t
+                t = v(l * 7 + i)
+                v(l * 7 + i) = v(l * 7 + (6 - i))
+                v(l * 7 + (6 - i)) = t
             Next
         Next
     End If
@@ -1385,7 +1385,7 @@ Private Sub Refresh_Selected_Day(ByVal dValue As Date)
 End Sub
 
 Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
-    Dim v As Variant, i As Long, L As Long
+    Dim v As Variant, i As Long, l As Long
     Dim iDay As Long
     
     If bInit Then
@@ -1509,18 +1509,18 @@ Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
         Next
         
         If UseDefaultBackColors = False Then
-            For L = 0 To 6
-                If mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleTransparent Then
-                    mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleOpaque
+            For l = 0 To 6
+                If mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleTransparent Then
+                    mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleOpaque
                 End If
-                If mLabelButtons(L).Obj_CmBl.BackColor <> lPHeaderBackColor Then
-                    mLabelButtons(L).Obj_CmBl.BackColor = lPHeaderBackColor
+                If mLabelButtons(l).Obj_CmBl.BackColor <> lPHeaderBackColor Then
+                    mLabelButtons(l).Obj_CmBl.BackColor = lPHeaderBackColor
                 End If
             Next
         Else
-            For L = 0 To 6
-                If mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleOpaque Then
-                   mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleTransparent
+            For l = 0 To 6
+                If mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleOpaque Then
+                   mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleTransparent
                 End If
         Next
         End If
