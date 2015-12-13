@@ -23,68 +23,63 @@ Dim id As Long
 If MsgBox("Wilt u het geselecteerde vaarplan weggooien (onomkeerbaar, komt niet in statistieken)?", vbYesNo) = vbNo Then
     Exit Sub
 End If
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 
 id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
 
-conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
 
 Call ws_gui.build_sail_plan_list
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub right_mouse_finish()
 'finalize the sail plan and move to history database
 Dim id As Long
-Dim his_conn As ADODB.Connection
 Dim qstr As String
 Dim ctr As MSForms.Control
 Dim s As String
 Dim ss() As String
+Dim rst As ADODB.Recordset
 
 'get id from sheet
-id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
-'loop all tresholds, enter into history database, check if treshold
-'needs to be logged.
-
-s = SAIL_PLAN_ARCHIVE_DATABASE_PATH
-'validate archive sail plan database path
-If Dir(s) = vbNullString Then
-    MsgBox "De database voor het vaarplannen archief is niet gevonden. " _
-        & "Controleer de locatie in het instellingen menu." _
-        , vbExclamation
-    'end execution
-    End
-ElseIf Right(s, 6) <> ".accdb" Then
-    MsgBox "De database voor het vaarplannen archief is niet valide. Is dit wel een '.accdb' database?" _
-        , vbExclamation
-    'end execution
-    End
-End If
+    id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
 
 'open connection to active database
-    Call ado_db.connect_ADO
+    Call ado_db.connect_sp_ADO
+    Set rst = ado_db.ADO_RST
+    
+'check if there are raw tidal windows for this sail plan
+'if not, do not finalize
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "';"
+    rst.Open qstr
+    If IsNull(rst!raw_windows) Then
+        s = vbNullString
+    Else
+        s = rst!raw_windows
+    End If
+    rst.Close
+    Set rst = Nothing
+    If s = vbNullString Then
+        MsgBox "Er is geen berekening gemaakt voor dit schip, kan niet finalizeren.", vbExclamation
+        GoTo abort
+    End If
+
+'open connection to archive database
+    Call ado_db.connect_arch_ADO
 
 'construct query string to insert the selected sail_plan into the
 'archive database
     qstr = "INSERT INTO sail_plans IN '" _
-        & s & _
+        & SAIL_PLAN_ARCHIVE_DATABASE_PATH & _
         "' SELECT * FROM sail_plans WHERE id = '" & id & "';"
 
 'execute query
-    conn.Execute qstr
-
-'to be able to modify the history database, we need 2 connections
-'setup one locally
-    Set his_conn = New ADODB.Connection
-    With his_conn
-        .Provider = "Microsoft.ACE.OLEDB.12.0"
-        .Open s
-    End With
+    sp_conn.Execute qstr
 
 'load finalize_form
     Call proj.finalize_form_load(id)
@@ -94,8 +89,8 @@ End If
         If .cancelflag Then
             'delete the sailplan form the history database
             qstr = "DELETE * FROM sail_plans WHERE id = '" & id & "';"
-            his_conn.Execute qstr
-            GoTo EndSub
+            arch_conn.Execute qstr
+            GoTo Endsub
         End If
         'insert ata's
             For Each ctr In .ata_frame.Controls
@@ -105,43 +100,44 @@ End If
                         & CDate(ctr.text) _
                         & "# WHERE id = '" & id & "' " _
                         & "AND treshold_index = " & ss(1) & ";"
-                    his_conn.Execute qstr
+                    arch_conn.Execute qstr
                 End If
             Next ctr
         'insert sailplan succes
             If .planning_ob_yes Then
                 qstr = "UPDATE sail_plans SET sail_plan_succes = TRUE WHERE id = '" _
                     & id & "';"
-                his_conn.Execute qstr
+                arch_conn.Execute qstr
             Else
                 qstr = "UPDATE sail_plans SET no_succes_reason = '" _
                     & .reason_tb.text & "' WHERE id = '" _
                     & id & "';"
-                his_conn.Execute qstr
+                arch_conn.Execute qstr
             End If
         'insert remarks (if any)
             If .remarks_tb.text <> vbNullString Then
                 qstr = "UPDATE sail_plans SET remarks = '" _
                     & .remarks_tb.text & "' WHERE id = '" _
                     & id & "';"
-                his_conn.Execute qstr
+                arch_conn.Execute qstr
             End If
     End With
 
 'delete the sail plan from the active database
     qstr = "DELETE * FROM sail_plans WHERE id = '" & id & "';"
-    conn.Execute qstr
+    sp_conn.Execute qstr
 
 'update gui
     Call ws_gui.clean_sheet
     Call ws_gui.build_sail_plan_list
 
-EndSub:
+Endsub:
 Unload finalize_form
-his_conn.Close
-Set his_conn = Nothing
 
-Call ado_db.disconnect_ADO
+abort:
+
+Call ado_db.disconnect_arch_ADO
+Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub right_mouse_edit()
@@ -158,8 +154,8 @@ Dim qstr As String
 
 Call ws_gui.clean_sail_plan_list
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -187,7 +183,7 @@ rst.Close
 Call ws_gui.display_sail_plan
 
 Set rst = Nothing
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 Call ws_gui.restore_line_colors
 End Sub
 
@@ -311,8 +307,8 @@ Dim r As Range
 Dim sh As Worksheet
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 
@@ -328,7 +324,7 @@ For i = 1 To 9
     Else
         On Error GoTo 0
         'change the deviation in the sail plans
-        conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & ";"
+        sp_conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & ";"
         On Error Resume Next
     End If
     Set r = Nothing
@@ -336,13 +332,13 @@ Next i
 
 On Error GoTo 0
 'clear all raw windows and tidal windows (recalc is nessesary)
-conn.Execute "UPDATE sail_plans SET raw_windows = NULL;"
-conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL;"
-conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL;"
+sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL;"
+sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL;"
+sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL;"
 
 Set sh = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub insert_deviations_into_sail_plan(id As Long)
@@ -351,7 +347,7 @@ Dim i As Long
 Dim r As Range
 Dim sh As Worksheet
 Set sh = ActiveSheet
-If conn Is Nothing Then Exit Sub
+If sp_conn Is Nothing Then Exit Sub
 On Error Resume Next
 For i = 1 To 9
     Set r = sh.Range("dev_" & i)
@@ -360,7 +356,7 @@ For i = 1 To 9
     Else
         On Error GoTo 0
         'change the deviation in the sail plans
-        conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & " AND id = '" & id & "';"
+        sp_conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & " AND id = '" & id & "';"
         On Error Resume Next
     End If
     Set r = Nothing
@@ -399,8 +395,8 @@ rw = Selection.Cells(1, 1).Row
     r.Borders(xlInsideHorizontal).LineStyle = xlNone
 
 'connect db
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
 
@@ -410,7 +406,7 @@ Call ws_gui.draw_path(rw)
 Call ws_gui.write_tidal_data(rw)
 
 'disconnect db
-    If connect_here Then Call ado_db.disconnect_ADO
+    If connect_here Then Call ado_db.disconnect_sp_ADO
 
 exitsub:
 Application.ScreenUpdating = True
@@ -433,8 +429,8 @@ Set sh = ActiveSheet
 id = sh.Cells(rw, 1)
 
 'connect db
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -512,7 +508,7 @@ With sh
     Loop
 End With
     
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub draw_path(rw As Long)
@@ -535,8 +531,8 @@ Set sh = ActiveSheet
 id = sh.Cells(rw, 1)
 
 'connect db
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -626,7 +622,7 @@ Loop
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub draw_path_line(draw_bottom As Double, start_frame As Date, ETA0 As Date, ETA1 As Date, d0 As Double, d1 As Double, Optional Blue As Boolean)
@@ -713,8 +709,8 @@ Call ws_gui.clean_sheet
 id = sh.Cells(rw, 1)
 
 'connect db
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -726,10 +722,10 @@ id = sh.Cells(rw, 1)
 'check draught and update database if nessesary
 If Round(sh.Cells(rw, 5), 2) <> Round(rst!ship_draught, 2) Then
     'update draught
-    conn.Execute "UPDATE sail_plans SET ship_draught = '" & val(Replace(sh.Cells(rw, 5).text, ",", ".")) & "' WHERE id = '" & id & "';"
-    conn.Execute "UPDATE sail_plans SET raw_windows = NULL WHERE id = '" & id & "';"
-    conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL WHERE id = '" & id & "';"
-    conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL WHERE id = '" & id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_draught = '" & val(Replace(sh.Cells(rw, 5).text, ",", ".")) & "' WHERE id = '" & id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL WHERE id = '" & id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL WHERE id = '" & id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL WHERE id = '" & id & "';"
 End If
 
 'construct drawing constants
@@ -772,7 +768,7 @@ Do Until rst.EOF
         If sql_db.DB_HANDLE = 0 Then
             MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
             'make sure to releas the db lock
-            Call ado_db.disconnect_ADO
+            Call ado_db.disconnect_sp_ADO
             'end execution completely
             End
         End If
@@ -785,7 +781,7 @@ Do Until rst.EOF
     If s = proj.NO_DATA_STRING Then
         Call ws_gui.clean_sheet
         MsgBox "Er is geen data in de database voor (een deel van) deze reis. Waarschijnlijk valt de eta buiten de getijdegegevens van de database", Buttons:=vbCritical
-        Call ado_db.disconnect_ADO
+        Call ado_db.disconnect_sp_ADO
         End
     End If
     ss1 = Split(s, ";")
@@ -864,7 +860,7 @@ exitsub:
 
 Set rst = Nothing
 Set sh = Nothing
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
         
 End Sub
 Public Sub DrawWindow(draw_bottom As Double, start_frame As Date, start_time As Date, end_time As Date, distance As Double, green As Boolean, Optional dark As Boolean)

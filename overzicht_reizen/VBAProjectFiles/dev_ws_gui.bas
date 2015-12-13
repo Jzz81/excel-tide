@@ -11,9 +11,9 @@ Dim rst As ADODB.Recordset
 Dim s() As String
 Dim i As Long
 
-If conn Is Nothing Then Exit Function
+If sp_conn Is Nothing Then Exit Function
 
-Set rst = conn.OpenSchema(adSchemaTables, Array(Empty, Empty, Empty, "TABLE"))
+Set rst = sp_conn.OpenSchema(adSchemaTables, Array(Empty, Empty, Empty, "TABLE"))
 
 Do Until rst.EOF
     i = i + 1
@@ -50,10 +50,10 @@ Dim rws As Long
 Dim sh As Worksheet
 
 'TODO: validate database path
-Call ado_db.connect_ADO(TIDAL_DATA_DEV_DATABASE_PATH)
+Call ado_db.connect_sp_ADO(TIDAL_DATA_DEV_DATABASE_PATH)
 
 tables = get_deviation_table_names
-If Not IsArray(tables) Then GoTo EndSub
+If Not IsArray(tables) Then GoTo Endsub
 
 Set rst = ado_db.ADO_RST
 
@@ -76,10 +76,10 @@ Call make_graphs(tables)
 
 sh.Rows(1 & ":" & tbl_i * 2 + 1).font.TintAndShade = 0
 
-EndSub:
+Endsub:
 Set sh = Nothing
 Set rst = Nothing
-Call ado_db.disconnect_ADO
+Call ado_db.disconnect_sp_ADO
 
 End Sub
 Private Sub make_graphs(tables As Variant)

@@ -157,8 +157,8 @@ Dim ctr As MSForms.Control
 Dim t As Long
 
 'setup connection and recordset
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -201,7 +201,7 @@ With finalize_form
     .Show
 End With
     
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub finalize_form_ok_click()
@@ -268,8 +268,8 @@ Dim s As String
 Dim needed_rise As Double
 
 'setup connection and recordset
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -422,8 +422,8 @@ Dim ss() As String
 Dim i As Long
 
 'setup connection and recordset
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -449,7 +449,7 @@ Dim i As Long
     rst.Close
     Set rst = Nothing
     
-    If connect_here Then Call ado_db.disconnect_ADO
+    If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
 
@@ -470,8 +470,8 @@ Dim eta As Date
 Dim v As Variant
 
 'setup connection and recordset
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -527,7 +527,7 @@ Dim v As Variant
     rst.Close
     Set rst = Nothing
     
-    If connect_here Then Call ado_db.disconnect_ADO
+    If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Function sail_plan_loop_check_tresholds(rst As ADODB.Recordset, ETA0 As Date, windows As Collection) As Variant
@@ -669,8 +669,8 @@ Dim s As String
 
 Load sail_plan_edit_form
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -765,7 +765,7 @@ Set rst = Nothing
 If Not sql_db.check_sqlite_db_is_loaded Then
     MsgBox "De database is niet ingeladen. Kan het formulier niet laden.", Buttons:=vbCritical
     'release db lock
-    Call ado_db.disconnect_ADO
+    Call ado_db.disconnect_sp_ADO
     'end completely (critical)
     End
 End If
@@ -785,9 +785,9 @@ Loop
 
 If Show Then sail_plan_edit_form.Show
 
-EndSub:
+Endsub:
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -800,8 +800,8 @@ Dim ss() As String
 Dim ctr As MSForms.Control
 
 'setup connection and recordset
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -884,7 +884,7 @@ Set rst = Nothing
 'remove the sail plan from the database, but only if cancel is not clicked.
 If Not aux_.form_is_loaded("sail_plan") Then
     'remove
-    conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+    sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
     'update gui
     Call ws_gui.build_sail_plan_list
 Else
@@ -892,7 +892,7 @@ Else
     Unload sail_plan_edit_form
 End If
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Function sail_plan_form_ship_id() As Long
@@ -903,8 +903,8 @@ Dim rst As ADODB.Recordset
 Dim connect_here As Boolean
 
 With sail_plan_edit_form
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -928,7 +928,7 @@ With sail_plan_edit_form
     Set rst = Nothing
 End With
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
 Private Function sail_plan_form_get_speeds_array() As Variant
@@ -1008,8 +1008,8 @@ With sail_plan_edit_form
         End If
     End If
         
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst1 = ado_db.ADO_RST
@@ -1135,15 +1135,15 @@ With sail_plan_edit_form
     rst3.Close
     
     'set route data
-    conn.Execute "UPDATE sail_plans SET route_naam = '" & .routes_cb.List(.routes_cb.ListIndex, 0) & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET route_naam = '" & .routes_cb.List(.routes_cb.ListIndex, 0) & "' WHERE id = '" & sp_id & "';"
     
     'set ship data
-    conn.Execute "UPDATE sail_plans SET ship_naam = '" & .ships_cb.Value & "' WHERE id = '" & sp_id & "';"
-    conn.Execute "UPDATE sail_plans SET ship_callsign = '" & .TextBox2.text & "' WHERE id = '" & sp_id & "';"
-    conn.Execute "UPDATE sail_plans SET ship_imo = '" & .TextBox3.text & "' WHERE id = '" & sp_id & "';"
-    conn.Execute "UPDATE sail_plans SET ship_loa= " & Replace(.TextBox4.text, ",", ".") & " WHERE id = '" & sp_id & "';"
-    conn.Execute "UPDATE sail_plans SET ship_boa= " & Replace(.TextBox5.text, ",", ".") & " WHERE id = '" & sp_id & "';"
-    conn.Execute "UPDATE sail_plans SET ship_type= '" & .ship_types_cb.Value & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_naam = '" & .ships_cb.Value & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_callsign = '" & .TextBox2.text & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_imo = '" & .TextBox3.text & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_loa= " & Replace(.TextBox4.text, ",", ".") & " WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_boa= " & Replace(.TextBox5.text, ",", ".") & " WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_type= '" & .ship_types_cb.Value & "' WHERE id = '" & sp_id & "';"
     
     'set ship draught and ukc
     Call proj.sail_plan_db_set_ship_draught_and_ukc(sp_id, val(.TextBox6.text))
@@ -1170,7 +1170,7 @@ Set rst1 = Nothing
 Set rst2 = Nothing
 Set rst3 = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Private Sub insert_ship_in_database(naam As String, callsign As String, imo As String, loa As Double, boa As Double, ship_type_id As Long, speeds As String)
@@ -1178,7 +1178,7 @@ Private Sub insert_ship_in_database(naam As String, callsign As String, imo As S
 Dim rst As ADODB.Recordset
 Dim qstr As String
 
-If conn Is Nothing Then Exit Sub
+If sp_conn Is Nothing Then Exit Sub
 
 Set rst = ado_db.ADO_RST
 qstr = "SELECT * FROM ships WHERE naam = '" & naam & "';"
@@ -1315,8 +1315,8 @@ With sail_plan_edit_form
     
     If .routes_cb.ListIndex = -1 Then Exit Sub
     
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -1363,7 +1363,7 @@ With sail_plan_edit_form
             
 End With
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub sail_plan_form_ship_cb_exit()
@@ -1426,8 +1426,8 @@ Dim ret As Long
 Dim dt As Date
 Dim s As String
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1481,7 +1481,7 @@ exitsub:
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub sail_plan_db_fill_in_rta(id As Long)
@@ -1491,8 +1491,8 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim rta_start As Date
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1517,7 +1517,7 @@ Loop
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub sail_plan_db_set_ship_draught_and_ukc(id As Long, draught As Double)
@@ -1526,8 +1526,8 @@ Dim connect_here As Boolean
 Dim rst As ADODB.Recordset
 Dim qstr As String
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1548,7 +1548,7 @@ Loop
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -1566,8 +1566,8 @@ Dim connect_here As Boolean
 
 Load routes_edit_form
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1593,7 +1593,7 @@ Call proj.routes_form_fill_treshold_cb
 
 routes_edit_form.Show
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_new_route_click()
@@ -1615,8 +1615,8 @@ Dim connect_here As Boolean
 With routes_edit_form.routes_lb
     If .ListIndex = -1 Then Exit Sub
 
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -1630,7 +1630,7 @@ Set rst = Nothing
 Call proj.routes_form_fill_route_lb
 Call proj.routes_form_clear_dataframe
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_clear_dataframe()
@@ -1654,8 +1654,8 @@ Dim i As Long
 Dim ii As Long
 Dim t_found As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1713,7 +1713,7 @@ rst.Close
 
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_fill_route_lb()
@@ -1724,8 +1724,8 @@ Dim connect_here As Boolean
 Dim i As Long
 
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1750,7 +1750,7 @@ End With
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_set_treshold_edit_mode()
@@ -1795,8 +1795,8 @@ Static Selected_index As Long
 'edit mode is entered (selected_index = 0)
 If Not TRESHOLD_EDIT_MODE Then Selected_index = -1
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 
@@ -1836,7 +1836,7 @@ End With
     
 exitsub:
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
     
 End Sub
 Public Sub routes_form_routes_lb_click()
@@ -1848,8 +1848,8 @@ Dim i As Long
 Dim id As Long
 Dim t_id As Long
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -1900,7 +1900,7 @@ exitsub:
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_speeds_cb_change()
@@ -1990,8 +1990,8 @@ With routes_edit_form
     End If
     
     'get default values of this waypoint
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -2009,7 +2009,7 @@ End With
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_delete_treshold_click()
@@ -2087,8 +2087,8 @@ With routes_edit_form
         Exit Sub
     End If
     
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -2162,7 +2162,7 @@ exitsub:
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub routes_form_select_route_in_route_lb(n As String)
@@ -2192,8 +2192,8 @@ Dim connect_here As Boolean
 
 Load connections_edit_form
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2217,7 +2217,7 @@ Set rst = Nothing
 
 connections_edit_form.Show
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -2229,8 +2229,8 @@ Dim i As Long
 Dim s As String
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2258,7 +2258,7 @@ rst.Close
 
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 
 End Sub
@@ -2270,8 +2270,8 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2294,7 +2294,7 @@ End With
 
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub connection_form_save_click()
@@ -2319,8 +2319,8 @@ With connections_edit_form
    
 End With
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2372,7 +2372,7 @@ Call proj.connection_form_fill_conn_lb
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub connection_form_del_click()
@@ -2383,8 +2383,8 @@ Dim i As Long
 Dim id As Long
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2409,7 +2409,7 @@ Set rst = Nothing
 
 Call connection_form_fill_conn_lb
     
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -2426,8 +2426,8 @@ Dim connect_here As Boolean
 
 Load tresholds_edit_form
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2475,7 +2475,7 @@ Call proj.treshold_form_fill_tresholds_lb
 
 tresholds_edit_form.Show
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub treshold_form_fill_tresholds_lb()
@@ -2485,8 +2485,8 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim i As Long
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2508,7 +2508,7 @@ End With
     
 rst.Close
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub treshold_form_save_click()
@@ -2521,8 +2521,8 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim d As Double
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2583,7 +2583,7 @@ End With
 
 exitsub:
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -2610,8 +2610,8 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2643,7 +2643,7 @@ With tresholds_edit_form
     .rev_date_lbl.Caption = Format(rst!depth_rev_date, "dd-mm-yy")
     rst.Close
 End With
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 
@@ -2663,8 +2663,8 @@ Dim t As Long
 
 Load ship_types_edit_form
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2700,7 +2700,7 @@ Call proj.ship_type_form_fill_ship_type_lb
 
 ship_types_edit_form.Show
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub ship_type_form_fill_ship_type_lb()
@@ -2710,8 +2710,8 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim i As Long
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2734,7 +2734,7 @@ End With
 rst.Close
 Set rst = Nothing
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub ship_type_form_listbox_click()
@@ -2748,8 +2748,8 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2780,7 +2780,7 @@ With ship_types_edit_form
 
     rst.Close
 End With
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub ship_type_form_save_click()
@@ -2795,8 +2795,8 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim d As Double
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2852,7 +2852,7 @@ End With
 
 exitsub:
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub ship_type_form_del_click()
@@ -2876,8 +2876,8 @@ End With
 
 If id = 0 Then Exit Sub
 
-If conn Is Nothing Then
-    Call ado_db.connect_ADO
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
@@ -2901,7 +2901,7 @@ For Each ctr In ship_types_edit_form.dataframe.Controls
     End If
 Next ctr
 
-If connect_here Then Call ado_db.disconnect_ADO
+If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
 Public Sub ship_type_form_select_ship_type_in_lb(n As String)
@@ -2940,14 +2940,14 @@ Dim wb As Workbook
     If sql_db.DB_HANDLE = 0 Then
         MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
         'make sure to releas the db lock
-        Call ado_db.disconnect_ADO
+        Call ado_db.disconnect_sp_ADO
         'end execution completely
         End
     End If
 
 'connect database
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -2959,7 +2959,7 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo EndSub
+        GoTo Endsub
     Else
         Set wb = Application.Workbooks.Add
     End If
@@ -3011,11 +3011,11 @@ wb.Saved = True
 wb.Close
 Set wb = Nothing
 
-EndSub:
+Endsub:
 
 rst.Close
 If connect_here Then
-    Call ado_db.disconnect_ADO
+    Call ado_db.disconnect_sp_ADO
 End If
 
 End Sub
@@ -3093,14 +3093,14 @@ Dim wb As Workbook
     If sql_db.DB_HANDLE = 0 Then
         MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
         'make sure to releas the db lock
-        Call ado_db.disconnect_ADO
+        Call ado_db.disconnect_sp_ADO
         'end execution completely
         End
     End If
 
 'connect database
-    If conn Is Nothing Then
-        Call ado_db.connect_ADO
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
@@ -3112,7 +3112,7 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo EndSub
+        GoTo Endsub
     Else
         Set wb = Application.Workbooks.Add
     End If
@@ -3156,11 +3156,11 @@ Loop
 Call format_tidal_graph_sheet(wb)
 Set wb = Nothing
 
-EndSub:
+Endsub:
 
 rst.Close
 If connect_here Then
-    Call ado_db.disconnect_ADO
+    Call ado_db.disconnect_sp_ADO
 End If
 
 End Sub
