@@ -242,9 +242,9 @@ Me.route_lb.ColumnWidths = "75;31;30;30;30;30"
 Me.speed_cmb.ColumnCount = 2
 Me.speed_cmb.ColumnWidths = ";0"
 
-Me.UKC_unit_cb.AddItem "%"
-Me.UKC_unit_cb.AddItem "m"
-Me.UKC_unit_cb.Value = "%"
+Me.ukc_unit_cb.AddItem "%"
+Me.ukc_unit_cb.AddItem "m"
+Me.ukc_unit_cb.Value = "%"
 
 Me.speed_edit_frame.Visible = False
 Me.speed_edit_frame.Top = 6

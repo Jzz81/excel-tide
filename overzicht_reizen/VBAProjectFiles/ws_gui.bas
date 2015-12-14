@@ -184,7 +184,7 @@ Call ws_gui.display_sail_plan
 
 Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
-Call ws_gui.restore_line_colors
+Call restore_line_colors
 End Sub
 
 Public Sub add_sail_plan(id As Long, _
@@ -248,7 +248,7 @@ Loop
 Set sh = Nothing
 
 End Sub
-Public Sub restore_line_colors()
+Private Sub restore_line_colors()
 'restore the line colors on the sheet (gray/white)
 Dim rw As Long
 Dim sh As Worksheet
