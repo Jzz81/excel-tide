@@ -33,7 +33,7 @@ Call destroy_datepicker
 End Sub
 
 
-Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
+Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
 If KeyCode = vbKeyEscape Then
     Call destroy_datepicker
 End If
@@ -103,7 +103,7 @@ If Not cal Is Nothing Then Call destroy_datepicker
 
 End Sub
 
-Private Sub eta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
+Private Sub eta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
 If KeyCode = vbKeyEscape Then
     If Not cal Is Nothing Then Call destroy_datepicker
 End If
@@ -112,7 +112,7 @@ End Sub
 
 
 
-Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal y As Single)
+Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal y As Single)
 Call proj.sail_plan_form_route_lb_click
 
 End Sub
@@ -132,7 +132,7 @@ If Not cal Is Nothing Then Call destroy_datepicker
 
 End Sub
 
-Private Sub rta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
+Private Sub rta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
 If KeyCode = vbKeyEscape Then
     If Not cal Is Nothing Then Call destroy_datepicker
 End If
@@ -168,6 +168,17 @@ If Not input_mask_time(Me.rta_time_tb) Then
     Cancel = True
 End If
 End Sub
+
+Private Sub ship_types_cb_Change()
+Call proj.sail_plan_form_set_speeds_tbs
+End Sub
+
+Private Sub ships_cb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+If KeyCode = vbKeyUp Or KeyCode = vbKeyDown Then
+    KeyCode = 0
+End If
+End Sub
+
 Private Sub window_after_edit_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 If Not input_mask_time(Me.window_after_edit_tb) Then
     Cancel = True
@@ -206,6 +217,8 @@ End If
 End Sub
 
 Private Sub ships_cb_Exit(ByVal Cancel As MSForms.ReturnBoolean)
+Me.ships_cb.Value = UCase(Me.ships_cb.Value)
+
 Call proj.sail_plan_form_ship_cb_exit
 End Sub
 

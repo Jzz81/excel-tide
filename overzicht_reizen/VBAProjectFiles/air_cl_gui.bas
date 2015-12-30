@@ -1,5 +1,6 @@
 Attribute VB_Name = "air_cl_gui"
 Option Explicit
+Option Private Module
 
 Sub fill_cb()
 Dim sh As Worksheet

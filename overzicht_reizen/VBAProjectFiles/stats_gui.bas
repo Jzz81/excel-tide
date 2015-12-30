@@ -1,5 +1,6 @@
 Attribute VB_Name = "stats_gui"
 Option Explicit
+Option Private Module
 
 Public Sub show_dashboard()
 'will show all statistics on the statistics worksheet
@@ -143,7 +144,8 @@ Dim ser As Series
                                 startrow:=rw + 1, _
                                 endrow:=rw + i, _
                                 clm:=clm + 11
-                
+                'get segment speeds
+                    Set c = get_segment_speeds_from_id_collection(id_c)
                 Set c = Nothing
                 
                 rw = rw_max + 13
@@ -280,6 +282,57 @@ With get_points_from_id_collection
 End With
 
 Set rst = Nothing
+
+End Function
+Private Function get_segment_speeds_from_id_collection(c As Collection) As Collection
+'collects the average segment speeds and ship types
+'in array(segment_name, ship_type, speed)
+Dim qstr As String
+Dim rst As ADODB.Recordset
+Dim i As Long
+Dim v(0 To 2) As Variant
+Dim dt0 As Date
+Dim dt1 As Date
+Dim dist As Double
+
+Set get_segment_speeds_from_id_collection = New Collection
+
+Set rst = ado_db.ADO_RST(arch_conn)
+
+With get_segment_speeds_from_id_collection
+    For i = 1 To c.Count
+        qstr = "SELECT * FROM sail_plans WHERE " _
+            & "id = '" & c(i) & "' " _
+            & "AND ata <> NULL " _
+            & "ORDER BY treshold_index;"
+        rst.Open qstr
+        Do Until rst.EOF
+            If v(0) = vbNullString Then
+                v(0) = rst!treshold_name
+                dt0 = rst!ata
+                dist = rst!distance_to_here
+            Else
+                v(0) = v(0) & "-" & rst!treshold_name
+                dt1 = rst!ata
+                dist = rst!distance_to_here - dist
+                v(1) = dist / (DateDiff("n", dt0, dt1) / 60)
+                v(2) = rst!ship_type
+                'insert into collection
+                    .Add v
+                'reset variables
+                    v(0) = vbNullString
+                    v(1) = vbNullString
+                    v(2) = vbNullString
+                'store values
+                    v(0) = rst!treshold_name
+                    dt0 = dt1
+                    dist = rst!distance_to_here
+            End If
+            rst.MoveNext
+        Loop
+        rst.Close
+    Next i
+End With
 
 End Function
 Private Function get_ship_types_from_id_collection(c As Collection) As Collection

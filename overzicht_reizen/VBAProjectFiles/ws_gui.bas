@@ -1,19 +1,34 @@
 Attribute VB_Name = "ws_gui"
 Option Explicit
 Option Base 0
+Option Private Module
 
-Const SAIL_PLAN_GRAPH_DRAW_BOTTOM As Long = 500
-Const SAIL_PLAN_GRAPH_DRAW_TOP As Long = 85
-Const SAIL_PLAN_GRAPH_DRAW_LEFT As Long = 400
-Const SAIL_PLAN_GRAPH_DRAW_WIDTH As Long = 700
+Sub jzz()
+'to export a range to word
+'(for report making)
 
-Dim SAIL_PLAN_DAY_LENGTH As Double
-Dim SAIL_PLAN_MILE_LENGTH As Double
+Dim wdApp As Word.Application
+Dim doc As Word.Document
 
-Const SAIL_PLAN_TABLE_TOP_ROW As Long = 35
+Dim sSheetName As String
+Dim oRangeToCopy As Range
+Dim oCht As Chart
 
-Public Drawing As Boolean
+sSheetName = "overzicht reizen" ' worksheet to work on
+Set oRangeToCopy = Range("$G$4:$S$33") ' range to be copied
 
+Set wdApp = New Word.Application
+wdApp.Visible = True
+Set doc = wdApp.Documents.Add
+
+oRangeToCopy.CopyPicture xlScreen, xlPicture 'xlbitmap
+
+wdApp.Selection.Paste
+
+Set doc = Nothing
+Set wdApp = Nothing
+
+End Sub
 
 Public Sub right_mouse_delete()
 'delete the whole sail plan
@@ -67,6 +82,9 @@ Dim rst As ADODB.Recordset
     If s = vbNullString Then
         MsgBox "Er is geen berekening gemaakt voor dit schip, kan niet finalizeren.", vbExclamation
         GoTo abort
+    ElseIf s = proj.NO_DATA_STRING Then
+        MsgBox "Er is geen data in de database voor (een deel van) deze reis. Waarschijnlijk valt de eta buiten de getijdegegevens van de database", Buttons:=vbCritical
+        GoTo abort
     End If
 
 'open connection to archive database
@@ -92,15 +110,19 @@ Dim rst As ADODB.Recordset
             arch_conn.Execute qstr
             GoTo Endsub
         End If
+        Set rst = ado_db.ADO_RST(arch_conn)
         'insert ata's
             For Each ctr In .ata_frame.Controls
                 If TypeName(ctr) = "TextBox" Then
                     ss = Split(ctr.Name, "_")
-                    qstr = "UPDATE sail_plans SET ata = #" _
-                        & CDate(ctr.text) _
-                        & "# WHERE id = '" & id & "' " _
+                    'must use rst because of the date insert
+                    qstr = "SELECT * FROM sail_plans" _
+                        & " WHERE id = '" & id & "' " _
                         & "AND treshold_index = " & ss(1) & ";"
-                    arch_conn.Execute qstr
+                    rst.Open qstr
+                    rst!ata = DST_GMT.ConvertToGMT(CDate(ctr.text))
+                    rst.Update
+                    rst.Close
                 End If
             Next ctr
         'insert sailplan succes
@@ -128,13 +150,15 @@ Dim rst As ADODB.Recordset
     sp_conn.Execute qstr
 
 'update gui
-    Call ws_gui.clean_sheet
+    Call clean_sheet
     Call ws_gui.build_sail_plan_list
 
 Endsub:
 Unload finalize_form
 
 abort:
+
+Set rst = Nothing
 
 Call ado_db.disconnect_arch_ADO
 Call ado_db.disconnect_sp_ADO
@@ -146,18 +170,35 @@ Dim id As Long
 id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
 Call proj.sail_plan_edit_plan(id)
 End Sub
+
+Public Sub select_sail_plan(id As Long)
+'to select the sail plan on the sheet
+Dim rw As Long
+
+For rw = 6 To Blad1.Cells.SpecialCells(xlLastCell).Row
+    If Blad1.Cells(rw, 1) = id Then
+        Blad1.Cells(rw, 5).Select
+        Exit For
+    End If
+Next rw
+
+End Sub
+
 Public Sub build_sail_plan_list()
 'build up the sail plan overview list
 Dim connect_here As Boolean
 Dim rst As ADODB.Recordset
 Dim qstr As String
 
-Call ws_gui.clean_sail_plan_list
+Application.ScreenUpdating = False
+
+Call clean_sail_plan_list
 
 If sp_conn Is Nothing Then
     Call ado_db.connect_sp_ADO
     connect_here = True
 End If
+
 Set rst = ado_db.ADO_RST
 'select all sail plans
 qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 ORDER BY local_eta DESC;"
@@ -166,25 +207,28 @@ rst.Open qstr
 Drawing = True
 
 Do Until rst.EOF
-    Call ws_gui.add_sail_plan(rst!id, _
-                                rst!ship_naam, _
-                                rst!route_naam, _
-                                rst!ship_loa, _
-                                Round(rst!ship_draught, 2), _
-                                DST_GMT.ConvertToLT(rst!local_eta), _
-                                rst!route_shift, _
-                                rst!route_ingoing)
+    Call ws_gui.add_sail_plan(id:=rst!id, _
+                                naam:=rst!ship_naam, _
+                                reis:=rst!route_naam, _
+                                loa:=rst!ship_loa, _
+                                diepgang:=Round(rst!ship_draught, 2), _
+                                eta:=DST_GMT.ConvertToLT(rst!local_eta), _
+                                Shift:=rst!route_shift, _
+                                ingoing:=rst!route_ingoing)
     rst.MoveNext
 Loop
 
 Drawing = False
 rst.Close
 
+Call restore_line_colors
+
 Call ws_gui.display_sail_plan
+
+Application.ScreenUpdating = True
 
 Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
-Call restore_line_colors
 End Sub
 
 Public Sub add_sail_plan(id As Long, _
@@ -193,14 +237,14 @@ Public Sub add_sail_plan(id As Long, _
                             loa As Double, _
                             diepgang As Double, _
                             eta As Date, _
-                            shift As Boolean, _
+                            Shift As Boolean, _
                             ingoing As Boolean)
 'will add a sail plan to the overview
 Dim rw As Long
 Dim sh As Worksheet
 
 Set sh = ThisWorkbook.Sheets(1)
-If shift Then
+If Shift Then
     rw = sh.Range("verhaal_kop").Row + 2
 ElseIf ingoing Then
     rw = sh.Range("opvaart_kop").Row + 2
@@ -208,7 +252,7 @@ Else
     rw = sh.Range("afvaart_kop").Row + 2
 End If
 
-sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Insert shift:=xlDown
+sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Insert Shift:=xlDown
 
 sh.Cells(rw, 1) = id
 sh.Cells(rw, 2) = naam
@@ -220,7 +264,7 @@ sh.Cells(rw, 6) = eta
 Set sh = Nothing
 
 End Sub
-Public Sub clean_sail_plan_list()
+Private Sub clean_sail_plan_list()
 'empty the sail plan overview list
 Dim rw As Long
 Dim sh As Worksheet
@@ -230,19 +274,19 @@ Set sh = ThisWorkbook.Sheets(1)
 rw = sh.Range("opvaart_kop").Row + 2
 
 Do Until rw = sh.Range("afvaart_kop").Row - 1
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete shift:=xlUp
+    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
 Loop
 
 rw = sh.Range("afvaart_kop").Row + 2
 
 Do Until rw = sh.Range("verhaal_kop").Row - 1
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete shift:=xlUp
+    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
 Loop
 
 rw = sh.Range("verhaal_kop").Row + 2
 
 Do Until sh.Cells(rw, 1) = vbNullString
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete shift:=xlUp
+    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
 Loop
 
 Set sh = Nothing
@@ -312,7 +356,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 
-Call ws_gui.clean_sheet
+Call clean_sheet
 
 Set sh = ActiveSheet
 
@@ -331,6 +375,7 @@ For i = 1 To 9
 Next i
 
 On Error GoTo 0
+
 'clear all raw windows and tidal windows (recalc is nessesary)
 sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL;"
 sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL;"
@@ -364,6 +409,8 @@ Next i
 
 End Sub
 Public Sub display_sail_plan()
+'displays the selected sail plan on the worksheet
+
 Dim sh As Worksheet
 Dim rw As Long
 Dim r As Range
@@ -400,10 +447,10 @@ rw = Selection.Cells(1, 1).Row
         connect_here = True
     End If
 
-Call ws_gui.draw_tidal_windows(rw)
-Call ws_gui.draw_path(rw)
+Call draw_tidal_windows(rw)
+Call draw_path(rw)
 
-Call ws_gui.write_tidal_data(rw)
+Call write_tidal_data(rw)
 
 'disconnect db
     If connect_here Then Call ado_db.disconnect_sp_ADO
@@ -412,7 +459,7 @@ exitsub:
 Application.ScreenUpdating = True
 Drawing = False
 End Sub
-Public Sub write_tidal_data(rw As Long)
+Private Sub write_tidal_data(rw As Long)
 'write the tidal window data
 Dim sh As Worksheet
 Dim id As Long
@@ -511,7 +558,7 @@ End With
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
-Public Sub draw_path(rw As Long)
+Private Sub draw_path(rw As Long)
 Dim id As Long
 Dim sh As Worksheet
 Dim connect_here As Boolean
@@ -559,12 +606,12 @@ rst.MoveFirst
 
 'tijden van de tijpoort weergeven
 If Not IsNull(rst!tidal_window_start) Then
-    Call ws_gui.DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
+    Call DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
                                 start_global_frame, _
                                 rst!tidal_window_start, _
                                 vbNullString, _
                                 True)
-    Call ws_gui.DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
+    Call DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
                                 start_global_frame, _
                                 rst!tidal_window_end, _
                                 vbNullString)
@@ -590,13 +637,13 @@ Do Until rst.EOF
         end_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
     End If
     If last_window_start > 0 Then
-        Call ws_gui.draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+        Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
                         start_frame, _
                         last_window_start, _
                         rst!tidal_window_start, _
                         last_dist, _
                         rst!distance_to_here)
-        Call ws_gui.draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+        Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
                         start_frame, _
                         last_window_start + window_len, _
                         rst!tidal_window_end, _
@@ -604,7 +651,7 @@ Do Until rst.EOF
                         rst!distance_to_here)
         'draw the rta line (if needed)
         If Not IsNull(rst!rta) Then
-            Call ws_gui.draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             last_eta, _
                             rst!rta, _
@@ -625,7 +672,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
-Public Sub draw_path_line(draw_bottom As Double, start_frame As Date, ETA0 As Date, ETA1 As Date, d0 As Double, d1 As Double, Optional Blue As Boolean)
+Private Sub draw_path_line(draw_bottom As Double, start_frame As Date, ETA0 As Date, ETA1 As Date, d0 As Double, d1 As Double, Optional Blue As Boolean)
 'draws a line that represents the ship's speed
 Dim X1 As Double
 Dim X2 As Double
@@ -653,7 +700,7 @@ shp.Line.Transparency = 0.4
 Set shp = Nothing
 
 End Sub
-Public Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, t As Date, text As String, Optional AlignTop As Boolean = False)
+Private Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, t As Date, text As String, Optional AlignTop As Boolean = False)
 
 Dim Tp As Double
 Dim l As Double
@@ -684,7 +731,7 @@ Set shp = Nothing
 
 End Sub
 
-Public Sub draw_tidal_windows(rw As Long)
+Private Sub draw_tidal_windows(rw As Long)
 'display the data for the selected sailplan.
 Dim sh As Worksheet
 Dim id As Long
@@ -704,7 +751,7 @@ Dim last_end_of_window As Date
 Set sh = ActiveSheet
 
 'clean sheet
-Call ws_gui.clean_sheet
+Call clean_sheet
 
 id = sh.Cells(rw, 1)
 
@@ -779,7 +826,7 @@ Do Until rst.EOF
     s = rst!raw_windows
     'check if there there is data at all
     If s = proj.NO_DATA_STRING Then
-        Call ws_gui.clean_sheet
+        Call clean_sheet
         MsgBox "Er is geen data in de database voor (een deel van) deze reis. Waarschijnlijk valt de eta buiten de getijdegegevens van de database", Buttons:=vbCritical
         Call ado_db.disconnect_sp_ADO
         End
@@ -846,7 +893,7 @@ Do Until rst.EOF
         Next i
     End If
 
-    Call ws_gui.DrawLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+    Call DrawLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             end_frame, _
                             rst!distance_to_here, _
@@ -863,7 +910,13 @@ Set sh = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
         
 End Sub
-Public Sub DrawWindow(draw_bottom As Double, start_frame As Date, start_time As Date, end_time As Date, distance As Double, green As Boolean, Optional dark As Boolean)
+Private Sub DrawWindow(draw_bottom As Double, _
+                        start_frame As Date, _
+                        start_time As Date, _
+                        end_time As Date, _
+                        distance As Double, _
+                        green As Boolean, _
+                        Optional dark As Boolean)
 'sub to draw a shape
 Dim t As Double
 Dim l As Double
@@ -899,7 +952,11 @@ Set shp = Nothing
 
 End Sub
 
-Public Sub DrawLabel(draw_bottom As Double, start_frame As Date, end_frame As Date, distance As Double, text As String)
+Private Sub DrawLabel(draw_bottom As Double, _
+                        start_frame As Date, _
+                        end_frame As Date, _
+                        distance As Double, _
+                        text As String)
 Dim t As Double
 Dim l As Double
 Dim shp As Shape
@@ -933,7 +990,7 @@ Set shp = Nothing
 End Sub
 
 
-Public Sub clean_sheet()
+Private Sub clean_sheet()
 'cleans the sheet for a new calculation display
 Call delShapes
 With ThisWorkbook.Sheets(1).Range("G1:Z100")

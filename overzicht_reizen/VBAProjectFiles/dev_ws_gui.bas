@@ -2,6 +2,7 @@ Attribute VB_Name = "dev_ws_gui"
 Option Explicit
 Option Base 0
 Option Compare Text
+Option Private Module
 
 'module not active right now, worksheet hidden.
 

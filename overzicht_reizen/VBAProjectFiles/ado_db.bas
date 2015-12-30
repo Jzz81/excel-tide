@@ -1,5 +1,6 @@
 Attribute VB_Name = "ado_db"
 Option Explicit
+Option Private Module
 
 Public sp_conn As ADODB.Connection
 Public arch_conn As ADODB.Connection

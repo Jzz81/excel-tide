@@ -1,5 +1,6 @@
 Attribute VB_Name = "DST_GMT"
 Option Explicit
+Option Private Module
 
  ' For more on DST/Summer Time: http://webexhibits.org/daylightsaving/
  

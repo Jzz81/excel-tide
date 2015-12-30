@@ -2,6 +2,7 @@ Attribute VB_Name = "sql_db"
 Option Explicit
 Option Base 0
 Option Compare Text
+Option Private Module
 
 Dim tidal_conn As ADODB.Connection
 

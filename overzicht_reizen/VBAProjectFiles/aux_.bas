@@ -2,6 +2,7 @@ Attribute VB_Name = "aux_"
 Option Explicit
 Option Base 0
 Option Compare Text
+Option Private Module
 
 'Public Sub send_mail(body As String, subject As String, Optional attach_path As String)
 ''sub that will send a mail message via outlook
