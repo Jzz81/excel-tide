@@ -17,7 +17,7 @@ Option Explicit
 
 Public cancelflag As Boolean
 
-Dim caller_ctr As MSForms.Control
+Dim caller_ctr As MSForms.control
 Private WithEvents cal As cCalendar
 Attribute cal.VB_VarHelpID = -1
 
@@ -54,7 +54,7 @@ Private Sub create_datepicker()
 Set cal = New cCalendar
 Dim t As Double
 Dim l As Double
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 Set ctr = caller_ctr
 On Error Resume Next
     Do Until ctr.Parent.Name = Me.Name
@@ -255,9 +255,9 @@ Me.route_lb.ColumnWidths = "75;31;30;30;30;30"
 Me.speed_cmb.ColumnCount = 2
 Me.speed_cmb.ColumnWidths = ";0"
 
-Me.ukc_unit_cb.AddItem "%"
-Me.ukc_unit_cb.AddItem "m"
-Me.ukc_unit_cb.Value = "%"
+Me.UKC_unit_cb.AddItem "%"
+Me.UKC_unit_cb.AddItem "m"
+Me.UKC_unit_cb.Value = "%"
 
 Me.speed_edit_frame.Visible = False
 Me.speed_edit_frame.Top = 6

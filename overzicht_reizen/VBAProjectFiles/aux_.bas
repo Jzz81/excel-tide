@@ -4,6 +4,8 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+Public Declare Function GetTickCount Lib "kernel32" () As Long
+
 'Public Sub send_mail(body As String, subject As String, Optional attach_path As String)
 ''sub that will send a mail message via outlook
 'Dim oApp As Outlook.Application
@@ -63,14 +65,16 @@ For i = 1 To Len(s)
 Next i
 get_numeric_value_from_string = val(n)
 End Function
-Public Function string_is_in_collection(ByRef c As Collection, s As String) As Boolean
+Public Function string_is_in_collection(c As Collection, _
+                                        s As String, _
+                                        Optional no_remove As Boolean) As Boolean
 'checks if string s is in collection c. If true, it deletes the string from the collection.
 'c must be a collections of strings
 Dim i As Long
 For i = 1 To c.Count
     If c(i) = s Then
         string_is_in_collection = True
-        c.Remove (i)
+        If Not no_remove Then c.Remove (i)
         Exit For
     End If
 Next i

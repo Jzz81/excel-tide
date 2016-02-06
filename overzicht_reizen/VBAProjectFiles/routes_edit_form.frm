@@ -71,9 +71,9 @@ Me.routes_lb.ColumnWidths = "0;"
 Me.tresholds_lb.ColumnCount = 5
 Me.tresholds_lb.ColumnWidths = "50;25;16;;0"
 
-Me.ukc_unit_cb.AddItem "%"
-Me.ukc_unit_cb.AddItem "m"
-Me.ukc_unit_cb.Value = "%"
+Me.UKC_unit_cb.AddItem "%"
+Me.UKC_unit_cb.AddItem "m"
+Me.UKC_unit_cb.Value = "%"
 
 Me.speeds_cb.ColumnCount = 2
 Me.speeds_cb.ColumnWidths = "0;"

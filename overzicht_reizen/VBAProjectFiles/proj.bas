@@ -36,7 +36,7 @@ Public Drawing As Boolean
 'callback routines from ribbon buttons
 '*************************************
 
-Public Sub sail_plan_new(Control As IRibbonControl)
+Public Sub sail_plan_new(control As IRibbonControl)
 'Callback for add_sailplan_button onAction
     'execute only if sqlite db is loaded
     If sql_db.DB_HANDLE = 0 Then
@@ -45,37 +45,42 @@ Public Sub sail_plan_new(Control As IRibbonControl)
         Call proj.sail_plan_form_load
     End If
 End Sub
-Public Sub sail_plan_edit(Control As IRibbonControl)
+Public Sub sail_plan_edit(control As IRibbonControl)
 'Callback for edit_sailplan_button onAction
     'TODO: connect to the edit routine
+    Call ws_gui.right_mouse_edit
 End Sub
-Public Sub open_options(Control As IRibbonControl)
+Public Sub open_options(control As IRibbonControl)
 'Callback for show_what_button onAction
     Call settings_form_load
 End Sub
-Public Sub edit_tresholds(Control As IRibbonControl)
+Public Sub edit_tresholds(control As IRibbonControl)
 'Callback for tresholds_edit_button onAction
     Call proj.treshold_form_load
 End Sub
-Public Sub edit_ship_types(Control As IRibbonControl)
+Public Sub edit_ship_types(control As IRibbonControl)
 'Callback for ship_type_edit_button onAction
     Call proj.ship_type_form_load
 End Sub
-Public Sub edit_connections(Control As IRibbonControl)
+Public Sub edit_connections(control As IRibbonControl)
 'Callback for connections_edit_button onAction
     Call proj.connection_form_load
 End Sub
-Public Sub edit_routes(Control As IRibbonControl)
+Public Sub edit_routes(control As IRibbonControl)
 'Callback for routes_edit_button onAction
     Call proj.routes_form_load
 End Sub
-Public Sub load_database(Control As IRibbonControl)
+Public Sub load_database(control As IRibbonControl)
 'Callback for Load_database_button onAction
     Call sql_db.load_tidal_data_to_memory
 End Sub
-Public Sub close_database(Control As IRibbonControl)
+Public Sub close_database(control As IRibbonControl)
 'Callback for Close_database_button onAction
     Call sql_db.close_memory_db
+End Sub
+Public Sub fill_deviations(control As IRibbonControl)
+'callback for deviations button on sheet
+    Call deviations_check_deviation_inserts
 End Sub
 
 '*********************************************
@@ -172,7 +177,7 @@ Public Sub finalize_form_load(id As Long)
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 Dim t As Long
 Dim dt As Date
 
@@ -230,7 +235,7 @@ If connect_here Then Call ado_db.disconnect_sp_ADO
 End Sub
 Public Sub finalize_form_ok_click()
 'handle click of 'ok' button on the finalize form
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 Dim dt As Date
 Dim s As String
 Dim ss() As String
@@ -290,6 +295,9 @@ Dim c As Collection
 Dim i As Long
 Dim s As String
 Dim needed_rise As Double
+Dim deviations As Collection
+Dim B As Boolean
+Dim dev As Double
 
 'setup connection and recordset
     If sp_conn Is Nothing Then
@@ -298,9 +306,13 @@ Dim needed_rise As Double
     End If
     Set rst = ado_db.ADO_RST
 
+
 'query sail plan
     qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
     rst.Open qstr
+
+'get deviation strings collection
+    Set deviations = deviations_get_deviation_strings_collection(rst)
 
 'loop tresholds
 Do Until rst.EOF
@@ -314,24 +326,25 @@ Do Until rst.EOF
         d(0) = local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
         d(1) = local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
     
-    'calculate needed_rise
-        needed_rise = (rst!ship_draught + rst!ukc) - (rst!treshold_depth + rst!deviation)
-    
     'setup collection to hold the raw windows
         Set c = New Collection
+
+    'construct julian dates (for use in sqlite db)
+        jd0 = Sqlite3.ToJulianDay(d(0))
+        jd1 = Sqlite3.ToJulianDay(d(1))
     
+    'calculate needed_rise
+        needed_rise = (rst!ship_draught + rst!ukc) - rst!treshold_depth
+        
     'check if database operation is even nessesary
-        If needed_rise <= 0 Then
+    'TODO: check if there are missing deviations
+        If needed_rise - deviations_get_lowest_deviation(deviations, rst!deviation_id) <= 0 Then
             'no windows, the treshold has no limitations
             'the whole evaluate time frame is a window
             c.Add d
             'now skip the database query
             GoTo WriteWindows
         End If
-    
-    'construct julian dates (for use in sqlite db)
-        jd0 = Sqlite3.ToJulianDay(d(0))
-        jd1 = Sqlite3.ToJulianDay(d(1))
     
     'construct query
         qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
@@ -361,6 +374,8 @@ Do Until rst.EOF
             'Store Values:
                 dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
                 rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+                dev = deviation_get_interpolated_deviation(deviations, rst!deviation_id, dt)
+                rise = rise + dev
             'check the rise
                 If rise > needed_rise Then
                     If Not in_window Then
@@ -424,8 +439,375 @@ next_treshold:
         rst.MoveNext
 Loop
 
+End Sub
+
+'******************
+'deviation routines
+'******************
+Public Function deviations_get_deviation_strings_collection(ByRef rst As ADODB.Recordset) As Collection
+Dim d(0 To 1) As Date
+Dim jd0 As Double
+Dim jd1 As Double
+Dim i  As Long
+Dim s As String
+Dim c As Collection
+
+'setup deviations collection with deviation id's needed in this sail_plan
+'Set deviations_get_deviation_strings_collection = New Collection
+Set c = New Collection
+    
+    'get earliest and latest times:
+        d(0) = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+        jd0 = Sqlite3.ToJulianDay(d(0))
+        rst.MoveLast
+        d(1) = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+        jd1 = Sqlite3.ToJulianDay(d(1))
+        rst.MoveFirst
+    'loop tresholds to find unique deviation id's
+        Do Until rst.EOF
+            'check if dev_id is in collection already
+            For i = 1 To c.Count
+                If c(i)(0) = CStr(rst!deviation_id) Then
+                    'deviation already in collection
+                    GoTo move_next
+                End If
+            Next i
+goback:
+            s = deviations_retreive_devs_from_db(jd0:=jd0, _
+                                jd1:=jd1, _
+                                tidal_data_point:= _
+                                    ado_db.deviations_tidal_point(rst!deviation_id))
+            If deviations_validate_dev_string(s) Then
+                c.Add Array(CStr(rst!deviation_id), s)
+            Else
+                'check the deviations
+                MsgBox "Er missen gegevens in de afwijkingen tabel. Vul deze eerst aan.", vbExclamation
+                Call deviations_check_deviation_inserts
+                GoTo goback
+            End If
+move_next:
+            rst.MoveNext
+        Loop
+    rst.MoveFirst
+
+Set deviations_get_deviation_strings_collection = c
+
+End Function
+Private Function deviations_validate_dev_string(dev_string As String) As Boolean
+'will check the dev string for missing values that should be known
+Dim i As Long
+Dim dt As Date
+Dim ss() As String
+
+deviations_validate_dev_string = True
+
+ss = Split(dev_string, ";")
+For i = 0 To UBound(ss) Step 3
+    dt = CDate(ss(i))
+    If ss(i + 2) = vbNullString And dt <= Now + TimeSerial(40, 0, 0) And dt > Now Then
+        deviations_validate_dev_string = False
+        Exit Function
+    End If
+Next i
+
+End Function
+Private Function deviations_get_lowest_deviation(ByRef c As Collection, _
+                                        id As Long) As Long
+'will collect the lowest deviation from the collection
+Dim i As Long
+Dim ii As Long
+Dim dev As Long
+Dim ss() As String
+dev = 1000
+
+'loop collection to find id
+    For i = 1 To c.Count
+        'find id
+        If c(i)(0) = id Then
+            'split the dev string
+                ss = Split(c(i)(1), ";")
+            'find lowest value
+                For ii = 0 To UBound(ss) Step 3
+                    If ss(ii + 2) <> vbNullString Then
+                        If CLng(Replace(ss(ii + 2), ".", ",")) < dev Then dev = CLng(Replace(ss(ii + 2), ".", ","))
+                    End If
+                Next ii
+            Exit For
+        End If
+    Next i
+If dev = 1000 Then dev = 0
+deviations_get_lowest_deviation = dev
+End Function
+Private Sub deviations_check_deviation_inserts()
+'sub that will let the user fill in the deviations
+Dim qstr As String
+Dim rst As ADODB.Recordset
+Dim connect_here As Boolean
+Dim frame_ctr As MSForms.Frame
+Dim ctr As MSForms.control
+
+Dim frame_top As Double
+Dim frame_left As Double
+
+Dim t As Double
+Dim t_max As Double
+Dim dev_string As String
+Dim jd0 As Double
+Dim jd1 As Double
+Dim ss() As String
+Dim s As String
+Dim dt As Date
+Dim c As Collection
+Dim i As Long
+Dim ii As Long
+Dim dev As Double
+Dim handl As Long
+
+'get hw tables:
+'first check if there is an sqlite database loaded in memory:
+    If Not sql_db.check_sqlite_db_is_loaded Then
+        MsgBox "De database is niet ingeladen. Kan het formulier niet laden.", Buttons:=vbCritical
+        Exit Sub
+    End If
+
+'first get all deviation points
+'setup connection and recordset
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
+
+'query deviations table
+    qstr = "SELECT * FROM deviations WHERE naam IS NOT NULL;"
+    rst.Open qstr
+
+jd0 = Sqlite3.ToJulianDay(Now)
+jd1 = Sqlite3.ToJulianDay(Now + TimeSerial(40, 0, 0))
+
+load_again:
+Load deviations_validation_form
+With deviations_validation_form
+    'store the deviations strings in a collection
+    Set c = New Collection
+    frame_top = 15
+    frame_left = 5
+    'loop all deviations
+    Do Until rst.EOF
+        'add a frame for each deviation
+            Set frame_ctr = .Controls.Add("Forms.Frame.1")
+            frame_ctr.Top = frame_top
+            frame_ctr.Caption = vbNullString 'rst!naam
+            frame_ctr.Left = frame_left
+            frame_ctr.Height = 10
+            frame_ctr.Width = 135
+            frame_ctr.Name = "fr_" & rst!id
+            Set ctr = .Controls.Add("Forms.Label.1")
+                ctr.Left = frame_left
+                ctr.Top = frame_top - 10
+                ctr.Caption = rst!naam
+            Set ctr = Nothing
+        'get dev_string
+            dev_string = deviations_retreive_devs_from_db(jd0:=jd0, _
+                                                        jd1:=jd1, _
+                                                        tidal_data_point:=rst!tidal_data_point)
+        'add to temp collection
+            c.Add Array(CStr(rst!tidal_data_point), CStr(rst!id), dev_string)
+        ss = Split(dev_string, ";")
+        'add a label and textbox for each extreme
+            t = 10
+            For i = 0 To UBound(ss) Step 3
+                frame_ctr.Height = frame_ctr.Height + 17
+                'label
+                Set ctr = frame_ctr.Controls.Add("Forms.Label.1")
+                    ctr.Left = 5
+                    ctr.Top = t
+                    ctr.Caption = DST_GMT.ConvertToLT(CDate(ss(i))) & " (" & ss(i + 1) & ")"
+                    ctr.Width = 100
+                    ctr.Name = "lb_" & i
+                'textbox
+                Set ctr = frame_ctr.Controls.Add("Forms.TextBox.1")
+                    ctr.Left = 105
+                    ctr.Top = t - 3
+                    If ss(i + 2) <> vbNullString Then
+                        ctr.text = CLng(Replace(ss(i + 2), ".", ","))
+                    End If
+                    ctr.Width = 25
+                    ctr.Name = "tb_" & i
+                Set ctr = Nothing
+                t = t + 15
+            Next i
+            'position frames left and right
+                If frame_left = 5 Then
+                    'switch to right position
+                        frame_left = 140
+                    'store maximum t value
+                        If t > t_max Then t_max = t
+                Else
+                    'switch to left position
+                        frame_left = 5
+                    'store maxumum t value
+                        If t > t_max Then t_max = t
+                    'set new frame top value
+                        frame_top = frame_top + t_max + 23
+                    'adapt height of form and position of buttons
+                        .Height = .Height + t_max + 13
+                        .ok_btn.Top = .ok_btn.Top + t_max + 13
+                        .print_btn.Top = .print_btn.Top + t_max + 13
+                End If
+            rst.MoveNext
+        Loop
+        'make sure the last frame is used to set the height
+            If frame_left <> 5 Then
+                If t > t_max Then t_max = t
+                .Height = .Height + t_max + 10
+                .ok_btn.Top = .ok_btn.Top + t_max + 10
+            End If
+        'return cursor to enable 'load_again'
+            rst.MoveFirst
+        Set frame_ctr = Nothing
+    .Show
+    'check if form is still loaded (form is not cancelled)
+        If Not aux_.form_is_loaded("deviations_validation_form") Then
+            GoTo load_again
+        End If
+        rst.Close
+    'ok is clicked
+    'connect to the tidal db (hw)
+        Call ado_db.connect_tidal_ADO(HW:=True)
+
+    'loop stored dev strings (collection)
+    For i = 1 To c.Count
+        'get frame
+            Set frame_ctr = .Controls("fr_" & c(i)(1))
+        'split and loop dev_string
+        ss = Split(c(i)(2), ";")
+        For ii = 0 To UBound(ss) Step 3
+            'get date string (without the extreme value) from the label
+                s = frame_ctr.Controls("lb_" & ii).Caption
+                s = Left(s, Len(s) - 5)
+            dt = DST_GMT.ConvertToGMT(CDate(s))
+            dev = CLng(Replace(frame_ctr.Controls("tb_" & ii).text, ".", ","))
+            'update databases (sqlite and ado)
+            'sqlite query
+                qstr = "UPDATE " & c(i)(0) & "_hw " _
+                        & "SET dev = '" & dev & "' " _
+                        & "WHERE DateTime = '" & Format(Sqlite3.ToJulianDay(dt), "#.00000000") & "';"
+            'prepare and execute query
+                Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+                Sqlite3.SQLite3Step handl
+                Sqlite3.SQLite3Finalize handl
+            'ado query
+                qstr = "UPDATE " & c(i)(0) & " " _
+                    & "SET dev = " & dev & " " _
+                    & "WHERE dt = #" & Format(dt, "mm-dd-yyyy hh:nn:ss") & "#;"
+                tidal_conn.Execute qstr
+        Next ii
+        Set frame_ctr = Nothing
+    Next i
+    Call ado_db.disconnect_tidal_ADO
+End With
+
+Set rst = Nothing
+Set c = Nothing
+Unload deviations_validation_form
 
 End Sub
+
+Private Function deviation_get_interpolated_deviation(ByRef c As Collection, id As Long, dt As Date) As Double
+'will collect the interpolated deviation
+Dim i As Long
+Dim ii As Long
+Dim dev_0 As Long
+Dim dev_1 As Long
+Dim dt_0 As Date
+Dim dt_1 As Date
+Dim ss() As String
+
+For i = 1 To c.Count
+    'find id
+        If c(i)(0) = id Then
+            ss = Split(c(i)(1), ";")
+            'loop dt/dev values to clamp given dt
+            For ii = 0 To UBound(ss) Step 3
+                dt_1 = CDate(ss(ii))
+                If ss(ii + 2) <> vbNullString Then
+                    dev_1 = CLng(Replace(ss(ii + 2), ".", ","))
+                Else
+                    dev_1 = 0
+                End If
+                If dt_1 > dt Then Exit For
+                dt_0 = dt_1
+                dev_0 = dev_1
+            Next ii
+            'dt is clamped
+            If dt_0 = 0 Then
+                'no 'first' dt value has been found. Use the second.
+                deviation_get_interpolated_deviation = dev_1
+                Exit Function
+            End If
+            If dt_1 <= dt Then
+                'no 'last' dt value has been found. Use the last.
+                deviation_get_interpolated_deviation = dev_0
+                Exit Function
+            End If
+        End If
+Next i
+
+'interpolate:
+    deviation_get_interpolated_deviation = (((dt - dt_0) / (dt_1 - dt_0)) * (dev_1 - dev_0)) + dev_0
+
+End Function
+Public Function deviations_retreive_devs_from_db(jd0 As Double, _
+                                        jd1 As Double, _
+                                        tidal_data_point As String) As String
+'will get the deviations from the sqlite db
+Dim qstr As String
+Dim ctr As MSForms.control
+Dim t As Double
+Dim i As Long
+Dim ret As Long
+Dim dt As Date
+Dim ext As String
+Dim dev As String
+Dim c As Collection
+Dim c1 As Collection
+Dim v() As Variant
+Dim devs As String
+Dim handl As Long
+
+'construct query for deviations
+    qstr = "SELECT * FROM " & tidal_data_point & "_hw WHERE DateTime > '" _
+        & jd0 _
+        & "' AND DateTime < '" _
+        & jd1 & "';"
+
+'prepare and execute query
+    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+    ret = Sqlite3.SQLite3Step(handl)
+
+'check if this point has a hw table:
+    If ret <> SQLITE_MISUSE Then
+        'store deviations
+            Do While ret = SQLITE_ROW
+                dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
+                ext = Sqlite3.SQLite3ColumnText(handl, 1)
+                dev = Sqlite3.SQLite3ColumnText(handl, 2)
+                
+                devs = devs & Format(dt, "dd-mm-yyyy hh:nn") _
+                    & ";" & ext & ";" & dev & ";"
+                ret = Sqlite3.SQLite3Step(handl)
+            Loop
+            Sqlite3.SQLite3Finalize handl
+            If Len(devs) > 0 Then
+                devs = Left(devs, Len(devs) - 1)
+            End If
+    Else
+        MsgBox "Er is geen hoogwatertabel gevonden in de database voor '" & tidal_data_point _
+            & "'", vbExclamation
+    End If
+deviations_retreive_devs_from_db = devs
+End Function
 Private Function interpolate_date_based_on_draught(d0 As Date, d1 As Date, r0 As Double, r1 As Double, needed_rise As Double) As Date
 'returns the interpolated date based on the needed_rise
     If d0 = 0 Or r0 = 0 Then
@@ -500,6 +882,10 @@ Dim v As Variant
     End If
     Set rst = ado_db.ADO_RST
 
+'clear existing tidal windows
+    sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL WHERE id = '" & id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL WHERE id = '" & id & "';"
+
 'get raw windows collection
     Set windows = sail_plan_raw_windows_collection(id)
 
@@ -525,7 +911,7 @@ Dim v As Variant
                 Exit Do
             End If
         'a valid window is returned
-        eta = v(1)
+            eta = v(1)
         'check if the given eta is later than the initial eta.
         'If so, check all tresholds again. If not, initial eta
         'is valid and can be used.
@@ -577,7 +963,7 @@ Do Until rst.EOF
 TryAgain:
     'construct eta to calculate
         eta = ETA0 + rst!time_to_here
-    'get first allowable eta on the treshold (will return this eta if it fits into a window) and the window around it
+    'get first allowable eta on the treshold (will return current eta if it fits into a window) and the window around it
         d = sail_plan_check_treshold_window(windows(i + 1), eta, rst!min_tidal_window_pre, rst!min_tidal_window_after, rst!rta)
     'if no array is returned, there is no window available on or after this eta for this treshold
         If Not IsArray(d) Then
@@ -651,24 +1037,25 @@ For i = 0 To UBound(windows)
         If windows(i) = proj.NO_DATA_STRING Then Exit For
     'parse window
         ss = Split(windows(i), ",")
-    'check if the window is before the eta as a whole. If so, skip.
-        If CDate(ss(1)) - min_aft < eta Then GoTo NextWindow
+    'check if the end of the window is before the eta + the min_pre. If so, skip.
+        If CDate(ss(1)) < eta + min_aft Then GoTo NextWindow
     'check if window is long enough. If not, skip.
         If CDate(ss(1)) - CDate(ss(0)) < min_pre + min_aft Then GoTo NextWindow
     'check if a rta is in force
         If Not IsNull(rta) Then
             'if the start of the window is after the rta, exit
-                If CDate(ss(0)) + min_pre > rta Then Exit For
+                If CDate(ss(0)) + min_aft > rta Then Exit For
             'if the end of window if before the rta, goto next
-                If CDate(ss(1)) - min_aft < rta Then GoTo NextWindow
+                If CDate(ss(1)) - min_pre < rta Then GoTo NextWindow
         End If
     'check if eta is allowed
-        If CDate(ss(0)) + min_pre <= eta Then
+        If CDate(ss(0)) <= eta - min_pre Then
             'eta is allowed, return eta
             sail_plan_check_treshold_window = Array(CDate(ss(0)), eta, CDate(ss(1)))
             Exit Function
         Else
-            'eta is not allowed. Return first available eta, which is the start of the window
+            'eta is not allowed; it is before the beginning of this window.
+            'Return first available eta, which is the start of the window
             'plus the minimal window before the eta.
             sail_plan_check_treshold_window = Array(CDate(ss(0)), CDate(ss(0)) + min_pre, CDate(ss(1)))
             Exit Function
@@ -685,7 +1072,7 @@ Public Sub sail_plan_form_load(Optional Show As Boolean = True)
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 Dim t As Long
 Dim handl As Long
 Dim ret As Long
@@ -764,7 +1151,7 @@ With sail_plan_edit_form.speedframe
 End With
 rst.Close
 
-qstr = "SELECT * FROM ships;"
+qstr = "SELECT * FROM ships ORDER BY naam;"
 rst.Open qstr
 With sail_plan_edit_form.ships_cb
     Do Until rst.EOF
@@ -814,7 +1201,7 @@ If aux_.form_is_loaded("sail_plan_edit_form") Then
     If sail_plan_edit_form.cancelflag Then Unload sail_plan_edit_form
 End If
 
-Endsub:
+endsub:
 
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
@@ -826,7 +1213,7 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 Dim ss() As String
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 
 'setup connection and recordset
     If sp_conn Is Nothing Then
@@ -860,6 +1247,7 @@ Dim ctr As MSForms.Control
                 End If
             Next ctr
         'route and window variables
+            'TODO: check if route naam is in the cb
             .routes_cb.Value = rst!route_naam
             .window_pre_tb = Format(rst!min_tidal_window_pre, "hh:nn")
             .window_after_tb = Format(rst!min_tidal_window_after, "hh:nn")
@@ -913,9 +1301,13 @@ Set rst = Nothing
 'remove the sail plan from the database, but only if cancel is not clicked.
 If Not aux_.form_is_loaded("sail_plan") Then
     'remove
-    sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+        sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+    'store new id
+        id = Cells(Selection.Row, 1).Value
     'update gui
-    Call ws_gui.build_sail_plan_list
+        Call ws_gui.build_sail_plan_list
+    'select edited sail plan
+        Call ws_gui.select_sail_plan(id)
 Else
     'form is still loaded (hidden). Unload.
     Unload sail_plan_edit_form
@@ -962,7 +1354,7 @@ If connect_here Then Call ado_db.disconnect_sp_ADO
 End Function
 Private Function sail_plan_form_get_speeds_array() As Variant
 Dim s(0 To 9) As Double
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 With sail_plan_edit_form
     For Each ctr In .speedframe.Controls
         If Left(ctr.Name, 6) = "speed_" Then
@@ -1147,7 +1539,7 @@ With sail_plan_edit_form
         If .rta_ob Then
             If rst3!treshold_name = .rta_tresholds_cb.Value Then
                 rst3!rta_treshold = True
-                rst3!rta = CDate(.rta_date_tb) + CDate(.rta_time_tb)
+                rst3!rta = DST_GMT.ConvertToGMT(CDate(.rta_date_tb) + CDate(.rta_time_tb))
             End If
         ElseIf .current_ob Then
             If rst3!treshold_name = .current_tresholds_cb.Value Then
@@ -1183,7 +1575,7 @@ With sail_plan_edit_form
     sp_conn.Execute "UPDATE sail_plans SET ship_type= '" & .ship_types_cb.Value & "' WHERE id = '" & sp_id & "';"
     
     'set ship draught and ukc
-    Call proj.sail_plan_db_set_ship_draught_and_ukc(sp_id, val(.TextBox6.text))
+    Call proj.sail_plan_db_set_ship_draught_and_ukc(sp_id, CDbl(Replace(.TextBox6.text, ".", ",")))
     If .rta_ob Then
         Call proj.sail_plan_db_fill_in_rta(sp_id)
     ElseIf .current_ob Then
@@ -1416,7 +1808,7 @@ Public Sub sail_plan_form_ship_cb_exit()
 Dim i As Long
 Dim id As Long
 Dim ss() As String
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 
 With sail_plan_edit_form
     If .ships_cb.ListIndex <> -1 Then
@@ -1452,7 +1844,7 @@ Public Sub sail_plan_form_set_speeds_tbs()
 'insert the data from the ship_type_cb into the
 'speeds tbs
 Dim ss() As String
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 With sail_plan_edit_form
     If .ship_types_cb.ListIndex < 1 Then Exit Sub
     ss = Split(.ships_cb.List(.ship_types_cb.ListIndex, 7), ";")
@@ -1503,7 +1895,8 @@ jd1 = Sqlite3.ToJulianDay(end_frame)
 qstr = "SELECT * FROM " & rst!current_window_data_point & "_hw WHERE DateTime > '" _
     & jd0 _
     & "' AND DateTime < '" _
-    & jd1 & "';"
+    & jd1 & "' " _
+    & "AND Extr = 'HW';"
 
 'execute query
 Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
@@ -2933,7 +3326,7 @@ Dim id As Long
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim ctr As MSForms.Control
+Dim ctr As MSForms.control
 
 With ship_types_edit_form
     'find selected ship_type
@@ -3006,6 +3399,7 @@ Dim jd1 As Double
 Dim ret As Long
 Dim handl As Long
 Dim wb As Workbook
+Dim deviations As Collection
 
 'first check if there is an sqlite database loaded in memory:
     If sql_db.DB_HANDLE = 0 Then
@@ -3030,10 +3424,13 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo Endsub
+        GoTo endsub
     Else
         Set wb = Application.Workbooks.Add
     End If
+    
+'get deviation strings collection
+    Set deviations = deviations_get_deviation_strings_collection(rst)
 
 'loop all tresholds and gather tidal data around local_eta
 Do Until rst.EOF
@@ -3061,7 +3458,12 @@ Do Until rst.EOF
             GoTo next_treshold
         End If
         'add graph
-        Call add_tidal_table_to_wb(wb, rst!treshold_name, handl, rst!treshold_index)
+        Call add_tidal_table_to_wb(wb:=wb, _
+                                treshold:=rst!treshold_name, _
+                                handl:=handl, _
+                                devs:=deviations, _
+                                dev_id:=rst!deviation_id, _
+                                n:=rst!treshold_index)
         'end sqlite handl
         Sqlite3.SQLite3Finalize handl
     End If
@@ -3069,8 +3471,9 @@ next_treshold:
     rst.MoveNext
 Loop
 rst.MoveFirst
-wb.Sheets(1).PageSetup.CenterHeader = "Waterstanden per drempel voor " & rst!ship_naam & Chr(10) _
-    & "gedurende de tijpoort van " & rst!tidal_window_start & " tot " & rst!tidal_window_end
+wb.Sheets(1).PageSetup.CenterHeader = "Waterstanden in cm per drempel voor " & rst!ship_naam & Chr(10) _
+    & "gedurende de tijpoort van " & rst!tidal_window_start & " tot " & rst!tidal_window_end & Chr(10) _
+    & "Let op: afwijkingen in de waterstand zijn in de waardes verwerkt."
 
 Call format_tidal_table_sheet(wb)
 wb.Sheets(1).ExportAsFixedFormat Type:=xlTypePDF, Filename:= _
@@ -3082,7 +3485,7 @@ wb.Saved = True
 wb.Close
 Set wb = Nothing
 
-Endsub:
+endsub:
 
 rst.Close
 If connect_here Then
@@ -3090,16 +3493,23 @@ If connect_here Then
 End If
 
 End Sub
-Private Sub add_tidal_table_to_wb(ByRef wb As Workbook, treshold As String, handl As Long, n As Long)
+Private Sub add_tidal_table_to_wb(ByRef wb As Workbook, _
+                            treshold As String, _
+                            handl As Long, _
+                            ByRef devs As Collection, _
+                            dev_id As Long, _
+                            n As Long)
 'add a tidal table to the workbook
 Dim sh As Worksheet
 Dim ret As Long
 Dim rw As Long
 Dim clm As Long
 Dim dt As Date
+Dim rise As Double
+Dim dev As Double
 
 clm = n * 3 + 1
-rw = 2
+rw = 3
 Set sh = wb.Sheets(1)
 
 'write values to sheet
@@ -3107,18 +3517,20 @@ Set sh = wb.Sheets(1)
     Do While ret = SQLITE_ROW
         dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
         sh.Cells(rw, clm) = DST_GMT.ConvertToLT(dt)
-        sh.Cells(rw, clm + 1) = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ",")) * 10
+        rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+        dev = deviation_get_interpolated_deviation(devs, dev_id, dt)
+        sh.Cells(rw, clm + 1) = Round((rise + dev) * 10, 0)
         rw = rw + 1
         ret = Sqlite3.SQLite3Step(handl)
     Loop
     sh.Range(sh.Cells(2, clm), sh.Cells(rw, clm)).Cells.NumberFormat = "d/m hh:mm"
-    sh.Cells(1, clm) = treshold
+    sh.Cells(2, clm) = treshold
     'borders
-    With sh.Range(sh.Cells(1, clm), sh.Cells(1, clm + 1)).Borders(xlEdgeBottom)
+    With sh.Range(sh.Cells(2, clm), sh.Cells(2, clm + 1)).Borders(xlEdgeBottom)
         .LineStyle = xlContinuous
         .Weight = xlMedium
     End With
-    With sh.Range(sh.Cells(2, clm + 1), sh.Cells(rw, clm + 1)).Borders(xlEdgeLeft)
+    With sh.Range(sh.Cells(3, clm + 1), sh.Cells(rw - 1, clm + 1)).Borders(xlEdgeLeft)
         .LineStyle = xlContinuous
         .Weight = xlMedium
     End With
@@ -3183,7 +3595,7 @@ Dim wb As Workbook
 
 'open workbook if applicable
     If rst.BOF And rst.EOF Then
-        GoTo Endsub
+        GoTo endsub
     Else
         Set wb = Application.Workbooks.Add
     End If
@@ -3227,7 +3639,7 @@ Loop
 Call format_tidal_graph_sheet(wb)
 Set wb = Nothing
 
-Endsub:
+endsub:
 
 rst.Close
 If connect_here Then

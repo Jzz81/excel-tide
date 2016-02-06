@@ -149,7 +149,7 @@ Public Property Let Tag(sTag As String)
     sPTag = sTag
 End Property
 
-Public Property Get Parent() As Control
+Public Property Get Parent() As control
     If bInit Then
         Set Parent = CBxY.Parent.Parent
     Else

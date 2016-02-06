@@ -4,13 +4,10 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
-Dim tidal_conn As ADODB.Connection
-
 Const db_location As String = ":memory:"
 
 Dim tresholds_collection As Collection
 Dim hw_collection As Collection
-
 
 Public Sub load_tidal_data_to_memory()
 'load all data from the access database into a
@@ -28,7 +25,7 @@ Dim connect_here As Boolean
 
 'connect to the tidal database (access database)
     If tidal_conn Is Nothing Then
-        Call sql_db.connect_tidal_ADO
+        Call ado_db.connect_tidal_ADO
         connect_here = True
     End If
 
@@ -55,9 +52,9 @@ With FeedbackForm
         Call sql_db.copy_database_data
     
     'copy to hw database data as well. Disconnect first:
-        Call sql_db.disconnect_tidal_ADO
+        Call ado_db.disconnect_tidal_ADO
     'connect hw database
-        Call sql_db.connect_tidal_ADO(HW:=True)
+        Call ado_db.connect_tidal_ADO(HW:=True)
     
     .FeedbackLBL = "HW database layout inladen..."
     'get all tables from the access database
@@ -75,7 +72,7 @@ End With
 
 Unload FeedbackForm
 
-If connect_here Then Call sql_db.disconnect_tidal_ADO
+If connect_here Then Call ado_db.disconnect_tidal_ADO
 
 End Sub
 Public Sub copy_database_layout(Optional HW As Boolean = False)
@@ -97,7 +94,7 @@ Do Until rst.EOF
     If HW Then
         hw_collection.Add rst.Fields("TABLE_NAME").Value
         'create table in sqlite db with the "_hw" addition
-        CreateTable rst.Fields("TABLE_NAME").Value & "_hw", "DateTime REAL"
+        CreateTable rst.Fields("TABLE_NAME").Value & "_hw", "DateTime REAL, Extr TEXT, Dev REAL"
     Else
         tresholds_collection.Add rst.Fields("TABLE_NAME").Value
         'create table in sqlite db
@@ -119,10 +116,7 @@ Dim i As Long
 Dim c As Collection
 Dim s As String
 Dim qstr As String
-Dim rst As ADODB.Recordset
-'constuct ADO recordset
-Set rst = sql_db.ADO_tidal_rst
-
+    
 If HW Then
     Set c = hw_collection
 Else
@@ -139,24 +133,21 @@ For i = 1 To c.Count
     Else
         qstr = "SELECT * FROM " & s & " ORDER BY DateTime ASC;"
     End If
-    'open recordset
-    rst.Open qstr
-    'get all rows into variant array
-    v = rst.GetRows
+    
+    v = tidal_conn.Execute(qstr).GetRows
+    
     If HW Then
         Call insert_hw_data_array_into_sqlite(v, s)
     Else
         Call insert_data_array_into_sqlite(v, s)
     End If
     DoEvents
-    rst.Close
     If FeedbackForm.cancelflag Then Exit For
 Next i
 
-Set rst = Nothing
 
 End Sub
-Public Sub insert_hw_data_array_into_sqlite(v() As Variant, Table As String)
+Public Sub insert_hw_data_array_into_sqlite(v() As Variant, table As String)
 'sub that will insert an array of data into Table
 Dim handl As Long
 Dim Qstr1 As String
@@ -167,7 +158,7 @@ Dim update_progress As Boolean
 Dim Progress As Double
 
 'prepare part 1 of the sql string
-Qstr1 = "INSERT INTO '" & Table & "_hw' ('DateTime') VALUES "
+Qstr1 = "INSERT INTO '" & table & "_hw' ('DateTime', 'Extr', 'Dev') VALUES "
 
 'loop data array
 i_max = UBound(v, 2)
@@ -176,7 +167,9 @@ Do Until i >= i_max
     'loop the data array again, this time add each data row to the 2nd part of the sql string
     For i = i To i_max
         'add this data row from the array to the sql string
-        Qstr2 = Qstr2 & "('" & Sqlite3.ToJulianDay(CDate(v(0, i))) & "'), "
+        Qstr2 = Qstr2 & "('" & Format(Sqlite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" _
+            & v(1, i) & "', '" _
+            & v(2, i) & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
             i = i + 1
@@ -188,13 +181,13 @@ Do Until i >= i_max
         If Progress <> Round(i * 100 / i_max, 1) Then
             Progress = Round(i * 100 / i_max, 1)
             FeedbackForm.ProgressLBL = Progress & "%"
+            DoEvents
         End If
     End If
     update_progress = Not update_progress
     
     'finish the sql string
     Qstr2 = Left(Qstr2, Len(Qstr2) - 2) & ";"
-    DoEvents
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
@@ -207,7 +200,7 @@ Do Until i >= i_max
 Loop
 
 End Sub
-Public Sub insert_data_array_into_sqlite(v() As Variant, Table As String)
+Public Sub insert_data_array_into_sqlite(v() As Variant, table As String)
 'sub that will insert an array of data into Table
 Dim handl As Long
 Dim Qstr1 As String
@@ -218,7 +211,7 @@ Dim update_progress As Boolean
 Dim Progress As Double
 
 'prepare part 1 of the sql string
-Qstr1 = "INSERT INTO '" & Table & "' ('DateTime', 'Rise') VALUES "
+Qstr1 = "INSERT INTO '" & table & "' ('DateTime', 'Rise') VALUES "
 
 'loop data array
 i_max = UBound(v, 2)
@@ -241,13 +234,13 @@ Do Until i >= i_max
         If Progress <> Round(i * 100 / i_max, 1) Then
             Progress = Round(i * 100 / i_max, 1)
             FeedbackForm.ProgressLBL = Progress & "%"
+            DoEvents
         End If
     End If
     update_progress = Not update_progress
     
     'finish the sql string
     Qstr2 = Left(Qstr2, Len(Qstr2) - 2) & ";"
-    DoEvents
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
@@ -260,79 +253,6 @@ Do Until i >= i_max
 Loop
 
 End Sub
-
-
-'**************
-'ado operations
-'**************
-
-Public Sub connect_tidal_ADO(Optional HW As Boolean = False)
-'if hw is set, open the hw database
-Dim s As String
-Dim y As String
-
-If HW Then
-    s = TIDAL_DATA_HW_DATABASE_PATH
-Else
-    s = TIDAL_DATA_DATABASE_PATH
-End If
-
-y = CALCULATION_YEAR
-
-'check if database exists
-    If Dir(Replace(s, "<YEAR>", y)) = vbNullString Then
-        'database does not exist
-        MsgBox "Er is geen database gevonden voor de getijdegegevens. " _
-            & "Controleer de database locatie en het berekeningsjaar in het instellingen menu." _
-             , vbCritical
-        End
-    ElseIf Right(Replace(s, "<YEAR>", y), 6) <> ".accdb" Then
-        MsgBox "De database voor getijdegegevens is niet valide. Is dit wel een '.accdb' database?" _
-            , vbExclamation
-        'end execution
-        End
-    End If
-
-'check if there is a new database for next year already
-    tidal_data_ADO_next_year_check s
-    
-'insert year into db path and open connection
-    s = Replace(s, "<YEAR>", y)
-    Set tidal_conn = New ADODB.Connection
-    
-    With tidal_conn
-        .Provider = "Microsoft.ACE.OLEDB.12.0"
-        .Open s
-    End With
-
-End Sub
-
-Private Sub tidal_data_ADO_next_year_check(ByRef s As String)
-
-'check if we are in the last 2 weeks of the year
-If Now > DateSerial(Year(Now) + 1, 1, -14) Then
-    'check if a new database has already been made
-    If Dir(Replace(s, "<YEAR>", Year(Now) + 1)) = vbNullString Then
-        MsgBox "Dit zijn de laatste 2 weken van het jaar en er is nog geen database voor " & _
-            Year(Now) + 1 & " gemaakt!", vbExclamation
-    End If
-End If
-End Sub
-
-
-Public Sub disconnect_tidal_ADO()
-tidal_conn.Close
-Set tidal_conn = Nothing
-
-End Sub
-Public Function ADO_tidal_rst() As ADODB.Recordset
-Set ADO_tidal_rst = New ADODB.Recordset
-With ADO_tidal_rst
-    .ActiveConnection = tidal_conn
-    .LockType = adLockOptimistic
-    .CursorType = adOpenKeyset
-End With
-End Function
 
 
 '*****************

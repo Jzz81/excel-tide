@@ -20,6 +20,7 @@ Dim clm As Long
 Dim cnt As Long
 Dim shp As Shape
 Dim ser As Series
+Dim s As String
 
 'setup connection and recordset
     If arch_conn Is Nothing Then
@@ -38,7 +39,7 @@ Dim ser As Series
 'check if there are any sail_plans in the database
     If rst.BOF And rst.EOF Then
         rst.Close
-        GoTo Endsub
+        GoTo endsub
     End If
 
 'get year of the first sail plan and of the last
@@ -47,19 +48,37 @@ Dim ser As Series
     last_year = Year(rst!local_eta)
     rst.Close
 
-'loop the years
     With Blad5
         clm = 1
+        'loop the years
         For y = last_year To first_year Step -1
             'make up a page for this year
                 rw = 1
-                .Cells(rw, clm) = CStr(y)
                 With .Range(.Cells(rw, clm), .Cells(rw, clm + 12))
                     .Interior.Color = 9359529
                     .Borders(xlEdgeBottom).LineStyle = xlContinuous
                     .Borders(xlEdgeBottom).Weight = 2.5
                 End With
-            
+            'construct header
+                s = CStr(y)
+                qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
+                    & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
+                    & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+                    & "AND sail_plan_succes = TRUE;"
+                s = s & " (totaal van geslaagde vaarplannen: "
+                rst.Open qstr
+                s = s & CStr(rst.RecordCount)
+                rst.Close
+                qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
+                    & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
+                    & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+                    & "AND sail_plan_succes = FALSE;"
+                s = s & ", totaal van mislukte vaarplannen: "
+                rst.Open qstr
+                s = s & CStr(rst.RecordCount)
+                rst.Close
+                s = s & ")"
+                .Cells(rw, clm) = s
             rw = 3
             For mode = 1 To 3
                 '1 = ingoing, 2 = outgoing, 3 = shifting
@@ -144,20 +163,42 @@ Dim ser As Series
                                 startrow:=rw + 1, _
                                 endrow:=rw + i, _
                                 clm:=clm + 11
+                
+                'get below piecharts
+                    rw = rw_max + 13
                 'get segment speeds
                     Set c = get_segment_speeds_from_id_collection(id_c)
-                Set c = Nothing
+                'write header
+                    .Cells(rw, clm).Value = "Gemiddelde snelheden per segment"
+                    .Cells(rw, clm).font.Size = 13
+                    rw = rw + 1
+                'write to sheet
+                    i = 0
+                    write_segment_speed_collection_to_sheet _
+                                sh:=Blad5, _
+                                c:=c, _
+                                rw:=rw, _
+                                clm:=clm, _
+                                max_rw:=i
+                    Set c = Nothing
+            
+            rw = rw + i
                 
-                rw = rw_max + 13
 NextMode:
             Next mode
+            
+            'write all sail plans to sheet
+                write_sail_plan_summary_to_sheet sh:=Blad5, _
+                                            y:=y, _
+                                            rw:=rw, _
+                                            clm:=clm
             
             Set id_c = Nothing
             clm = clm + 13
         Next y
     End With
 
-Endsub:
+endsub:
 
 Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_arch_ADO
@@ -185,6 +226,62 @@ With sh
     Set shp = Nothing
 End With
 End Sub
+Private Sub write_sail_plan_summary_to_sheet(ByRef sh As Worksheet, _
+                                    y As Long, _
+                                    rw As Long, _
+                                    clm As Long)
+'write summary of all sail plans to sheet
+'no succes first
+Dim qstr As String
+Dim rst As ADODB.Recordset
+Dim i As Long
+
+Set rst = ado_db.ADO_RST(arch_conn)
+'query db for failed
+    qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
+        & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
+        & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+        & "AND sail_plan_succes = FALSE;"
+    rst.Open qstr
+'write header
+    sh.Cells(rw, clm) = "Mislukte vaarplannen:"
+'list sail_plans
+    i = 1
+    Do Until rst.EOF
+        sh.Cells(rw + i, clm) = rst!ship_naam
+        sh.Cells(rw + i, clm + 3) = rst!ship_type
+        sh.Cells(rw + i, clm + 4) = rst!ship_draught & "dm"
+        sh.Cells(rw + i, clm + 5) = Format(rst!local_eta, "hh:nn dd/mm/yy")
+        sh.Cells(rw + i, clm + 6) = rst!route_naam
+        sh.Cells(rw + i, clm + 7) = rst!no_succes_reason
+        i = i + 1
+        rst.MoveNext
+    Loop
+    rst.Close
+
+'query db for succes
+    qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
+        & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
+        & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+        & "AND sail_plan_succes = TRUE;"
+    rst.Open qstr
+'write header
+    sh.Cells(rw, clm) = "Succesvolle vaarplannen:"
+'list sail plans
+    i = 1
+    Do Until rst.EOF
+        sh.Cells(rw + i, clm) = rst!ship_naam
+        sh.Cells(rw + i, clm + 3) = rst!ship_type
+        sh.Cells(rw + i, clm + 4) = rst!ship_draught & "dm"
+        sh.Cells(rw + i, clm + 5) = Format(rst!local_eta, "dd/mm/yy")
+        sh.Cells(rw + i, clm + 6) = rst!route_naam
+        i = i + 1
+        rst.MoveNext
+    Loop
+    rst.Close
+
+Set rst = Nothing
+End Sub
 Private Sub write_collection_to_sheet(ByRef sh As Worksheet, c As Collection, rw As Long, clm As Long, ByRef i As Long)
 'write to sheet
 Dim cnt As Long
@@ -204,6 +301,88 @@ With sh
     .Cells(rw + i, clm + 1).Value = cnt
 End With
 End Sub
+Private Sub write_segment_speed_collection_to_sheet(ByRef sh As Worksheet, _
+                                            c As Collection, _
+                                            rw As Long, _
+                                            ByVal clm As Long, _
+                                            ByRef max_rw As Long)
+'write the collection to sheet
+'collection holds arrays with:
+'(segment_name, ship_type, speed)
+Dim i As Long
+Dim shp_type As String
+Dim seg_name As String
+Dim spd As Double
+Dim segm_c As Collection
+Dim types_c As Collection
+Dim types_count As Long
+Dim add_rw As Long
+
+Do Until c.Count = 0
+    If clm = 13 Then
+        'back to left; second row of segments
+        clm = 1
+        add_rw = add_rw + 1
+    End If
+    seg_name = c(1)(0)
+    'transfer all segment entries into new collection
+        Set segm_c = seperate_segment_from_collection(c, seg_name)
+    add_rw = 1
+    'fill in segment name
+        sh.Cells(rw + add_rw - 1, clm) = seg_name
+        sh.Range(sh.Cells(rw + add_rw - 1, clm), sh.Cells(rw + add_rw - 1, clm)).font.Bold = True
+    types_count = 0
+    Do Until segm_c.Count = 0
+        shp_type = segm_c(1)(1)
+        types_count = types_count + 1
+        'transfor all ship_type entries into new collection
+            Set types_c = seperate_ship_type_from_collection(segm_c, shp_type)
+        'loop and calc mean speed
+            spd = 0
+            For i = 1 To types_c.Count
+                spd = spd + types_c(i)(2)
+            Next i
+            spd = spd / (i - 1)
+        'fill in type and mean speed value
+            sh.Cells(rw + add_rw, clm) = shp_type
+            sh.Cells(rw + add_rw, clm + 1) = Round(spd, 1)
+        add_rw = add_rw + 1
+    Loop
+    'border around the segment
+        sh.Range(sh.Cells(rw + add_rw - types_count - 1, clm), _
+            sh.Cells(rw + add_rw - 1, clm + 1)).BorderAround _
+                LineStyle:=xlContinuous, _
+                Weight:=xlThin
+    If add_rw > max_rw Then max_rw = add_rw
+    
+    clm = clm + 2
+Loop
+
+End Sub
+Private Function seperate_segment_from_collection(ByRef c As Collection, _
+                                            seg_name As String) As Collection
+Dim i As Long
+Set seperate_segment_from_collection = New Collection
+For i = c.Count To 1 Step -1
+    If c(i)(0) = seg_name Then
+        seperate_segment_from_collection.Add c(i)
+        c.Remove (i)
+    End If
+Next i
+
+End Function
+Private Function seperate_ship_type_from_collection(ByRef c As Collection, _
+                                            shp_type As String) As Collection
+Dim i As Long
+Set seperate_ship_type_from_collection = New Collection
+For i = c.Count To 1 Step -1
+    If c(i)(1) = shp_type Then
+        seperate_ship_type_from_collection.Add c(i)
+        c.Remove (i)
+    End If
+Next i
+
+End Function
 Private Sub format_mode_header(ByRef sh As Worksheet, rw As Long, clm As Long, mode As Long)
 'will format and enter text for the mode header
 If mode = 1 Then
@@ -300,12 +479,19 @@ Set get_segment_speeds_from_id_collection = New Collection
 Set rst = ado_db.ADO_RST(arch_conn)
 
 With get_segment_speeds_from_id_collection
+    'loop collection
     For i = 1 To c.Count
-        qstr = "SELECT * FROM sail_plans WHERE " _
-            & "id = '" & c(i) & "' " _
-            & "AND ata <> NULL " _
-            & "ORDER BY treshold_index;"
-        rst.Open qstr
+        'construct and open query
+            qstr = "SELECT * FROM sail_plans WHERE " _
+                & "id = '" & c(i) & "' " _
+                & "AND ata <> NULL " _
+                & "ORDER BY treshold_index;"
+            rst.Open qstr
+        'reset variables
+            v(0) = vbNullString
+            v(1) = vbNullString
+            v(2) = vbNullString
+        'loop tresholds
         Do Until rst.EOF
             If v(0) = vbNullString Then
                 v(0) = rst!treshold_name
@@ -315,8 +501,8 @@ With get_segment_speeds_from_id_collection
                 v(0) = v(0) & "-" & rst!treshold_name
                 dt1 = rst!ata
                 dist = rst!distance_to_here - dist
-                v(1) = dist / (DateDiff("n", dt0, dt1) / 60)
-                v(2) = rst!ship_type
+                v(1) = rst!ship_type
+                v(2) = dist / (DateDiff("n", dt0, dt1) / 60)
                 'insert into collection
                     .Add v
                 'reset variables

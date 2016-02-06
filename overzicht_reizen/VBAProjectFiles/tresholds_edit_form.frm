@@ -30,7 +30,7 @@ Private Sub UserForm_Initialize()
     Me.tresholds_lb.ColumnCount = 2
     Me.tresholds_lb.ColumnWidths = "0;"
     
-    Me.ukc_unit_cb.AddItem "m"
-    Me.ukc_unit_cb.AddItem "%"
-    Me.ukc_unit_cb.Value = "%"
+    Me.UKC_unit_cb.AddItem "m"
+    Me.UKC_unit_cb.AddItem "%"
+    Me.UKC_unit_cb.Value = "%"
 End Sub

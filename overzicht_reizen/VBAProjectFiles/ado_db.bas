@@ -4,6 +4,7 @@ Option Private Module
 
 Public sp_conn As ADODB.Connection
 Public arch_conn As ADODB.Connection
+Public tidal_conn As ADODB.Connection
 
 Public Sub connect_arch_ADO(Optional ByVal db_path As String = vbNullString)
 'should not be nessesary, but to be on the safe side:
@@ -79,6 +80,66 @@ End With
 
 End Sub
 
+Public Sub connect_tidal_ADO(Optional HW As Boolean = False)
+'if hw is set, open the hw database
+Dim s As String
+Dim y As String
+
+If HW Then
+    s = TIDAL_DATA_HW_DATABASE_PATH
+Else
+    s = TIDAL_DATA_DATABASE_PATH
+End If
+
+y = CALCULATION_YEAR
+
+'check if database exists
+    If Dir(Replace(s, "<YEAR>", y)) = vbNullString Then
+        'database does not exist
+        MsgBox "Er is geen database gevonden voor de getijdegegevens. " _
+            & "Controleer de database locatie en het berekeningsjaar in het instellingen menu." _
+             , vbCritical
+        End
+    ElseIf Right(Replace(s, "<YEAR>", y), 6) <> ".accdb" Then
+        MsgBox "De database voor getijdegegevens is niet valide. Is dit wel een '.accdb' database?" _
+            , vbExclamation
+        'end execution
+        End
+    End If
+
+'check if there is a new database for next year already
+    tidal_data_ADO_next_year_check s
+    
+'insert year into db path and open connection
+    s = Replace(s, "<YEAR>", y)
+    Set tidal_conn = New ADODB.Connection
+    
+    With tidal_conn
+        .Provider = "Microsoft.ACE.OLEDB.12.0"
+        .Open s
+    End With
+
+End Sub
+Private Sub tidal_data_ADO_next_year_check(ByRef s As String)
+
+'check if we are in the last 2 weeks of the year
+If Now > DateSerial(Year(Now) + 1, 1, -14) Then
+    'check if a new database has already been made
+    If Dir(Replace(s, "<YEAR>", Year(Now) + 1)) = vbNullString Then
+        MsgBox "Dit zijn de laatste 2 weken van het jaar en er is nog geen database voor " & _
+            Year(Now) + 1 & " gemaakt!", vbExclamation
+    End If
+End If
+End Sub
+
+
+Public Sub disconnect_tidal_ADO()
+If Not tidal_conn Is Nothing Then
+    tidal_conn.Close
+    Set tidal_conn = Nothing
+End If
+End Sub
+
 Public Sub disconnect_sp_ADO()
 If Not sp_conn Is Nothing Then
     sp_conn.Close
@@ -148,7 +209,28 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
+Public Function deviations_tidal_point(id As Long) As String
+'get the tidal data point for a deviation id
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
 
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM deviations WHERE Id = " & id & ";"
+
+rst.Open qstr
+deviations_tidal_point = rst!tidal_data_point
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
 Public Function get_table_id_from_name(ByVal n As String, ByVal t As String) As Long
 'get id from table t based on the name n
 Dim rst As ADODB.Recordset

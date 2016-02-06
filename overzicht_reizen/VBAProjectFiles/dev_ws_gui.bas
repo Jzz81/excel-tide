@@ -54,7 +54,7 @@ Dim sh As Worksheet
 Call ado_db.connect_sp_ADO(TIDAL_DATA_DEV_DATABASE_PATH)
 
 tables = get_deviation_table_names
-If Not IsArray(tables) Then GoTo Endsub
+If Not IsArray(tables) Then GoTo endsub
 
 Set rst = ado_db.ADO_RST
 
@@ -77,7 +77,7 @@ Call make_graphs(tables)
 
 sh.Rows(1 & ":" & tbl_i * 2 + 1).font.TintAndShade = 0
 
-Endsub:
+endsub:
 Set sh = Nothing
 Set rst = Nothing
 Call ado_db.disconnect_sp_ADO
