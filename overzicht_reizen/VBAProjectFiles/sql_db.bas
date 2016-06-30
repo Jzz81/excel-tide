@@ -6,6 +6,9 @@ Option Private Module
 
 Const db_location As String = ":memory:"
 
+Dim T0 As Long
+Dim T1 As Long
+
 Dim tresholds_collection As Collection
 Dim hw_collection As Collection
 
@@ -33,6 +36,7 @@ Dim connect_here As Boolean
 'a new one will be opened on first use
     Call sql_db.close_memory_db
 
+
 'show the process to the user using feedbackform
 Load FeedbackForm
 With FeedbackForm
@@ -47,10 +51,16 @@ With FeedbackForm
     'try to get all tables from the access database
         Call sql_db.copy_database_layout
     
+    'timer
+        T0 = GetTickCount
+    
     FeedbackForm.FeedbackLBL = "Getijdegegevens inladen..."
     'try to get all data from the access database
         Call sql_db.copy_database_data
     
+    'timer
+        Debug.Print GetTickCount - T0
+            
     'copy to hw database data as well. Disconnect first:
         Call ado_db.disconnect_tidal_ADO
     'connect hw database
@@ -149,7 +159,11 @@ Next i
 End Sub
 Public Sub insert_hw_data_array_into_sqlite(v() As Variant, table As String)
 'sub that will insert an array of data into Table
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim Qstr1 As String
 Dim Qstr2 As String
 Dim i As Long
@@ -167,9 +181,9 @@ Do Until i >= i_max
     'loop the data array again, this time add each data row to the 2nd part of the sql string
     For i = i To i_max
         'add this data row from the array to the sql string
-        Qstr2 = Qstr2 & "('" & Format(Sqlite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" _
+        Qstr2 = Qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" _
             & v(1, i) & "', '" _
-            & v(2, i) & "'), "
+            & Format(v(2, i), "#.0") & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
             i = i + 1
@@ -191,18 +205,22 @@ Do Until i >= i_max
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
     'should be 101
-    Sqlite3.SQLite3Step handl
+    SQLite3.SQLite3Step handl
     'should be 0
-    Sqlite3.SQLite3Finalize handl
+    SQLite3.SQLite3Finalize handl
     If FeedbackForm.cancelflag Then Exit Do
 Loop
 
 End Sub
 Public Sub insert_data_array_into_sqlite(v() As Variant, table As String)
 'sub that will insert an array of data into Table
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim Qstr1 As String
 Dim Qstr2 As String
 Dim i As Long
@@ -222,7 +240,8 @@ Do Until i >= i_max
         'add this data row from the array to the sql string
         'add formatting to the julian date, because sqlite does not seem to accept
         'round numbers; it let out every noon value (julian day being a round number)
-        Qstr2 = Qstr2 & "('" & Format(Sqlite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" & v(1, i) & "'), "
+        Qstr2 = Qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" & _
+            Format(v(1, i), "#.00") & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
             i = i + 1
@@ -244,11 +263,11 @@ Do Until i >= i_max
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
     'should be 101
-    Sqlite3.SQLite3Step handl
+    SQLite3.SQLite3Step handl
     'should be 0
-    Sqlite3.SQLite3Finalize handl
+    SQLite3.SQLite3Finalize handl
     If FeedbackForm.cancelflag Then Exit Do
 Loop
 
@@ -261,20 +280,24 @@ End Sub
 
 Public Sub CreateTable(TableName As String, Columns As String)
 'will create a tabel in the sqlite db
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 'prepare, execute and close
 'should be 0:
-Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, "CREATE TABLE " & TableName & " (" & Columns & ");", handl
+SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, "CREATE TABLE " & TableName & " (" & Columns & ");", handl
 'should be 101:
-Sqlite3.SQLite3Step handl
+SQLite3.SQLite3Step handl
 'should be 0:
-Sqlite3.SQLite3Finalize handl
+SQLite3.SQLite3Finalize handl
 
 End Sub
 Public Sub close_memory_db()
 'close the SQLite database
     Call sql_db.initialize_SQLite
-    Sqlite3.SQLite3Close (sql_db.DB_HANDLE)
+    SQLite3.SQLite3Close (sql_db.DB_HANDLE)
     sql_db.DB_HANDLE reset:=True
 End Sub
 Public Function check_sqlite_db_is_loaded() As Boolean
@@ -284,7 +307,11 @@ Public Function check_sqlite_db_is_loaded() As Boolean
     End If
 End Function
 Public Function DB_HANDLE(Optional reset As Boolean = False, Optional open_new_db As Boolean = False) As Long
+#If Win64 Then
+Dim h As LongPtr
+#Else
 Dim h As Long
+#End If
 Dim RetVal As Long
 
 'if reset, remove reference
@@ -301,7 +328,7 @@ ElseIf open_new_db Then
     'no handle available, construction of new database is forced
     If Not sql_db.initialize_SQLite Then Exit Function
     ' Open the database
-    RetVal = Sqlite3.SQLite3Open(db_location, h)
+    RetVal = SQLite3.SQLite3Open(db_location, h)
     ThisWorkbook.Sheets("data").Cells(1, 2).Value = h
     ThisWorkbook.Saved = True
     DB_HANDLE = ThisWorkbook.Sheets("data").Cells(1, 2).Value
@@ -315,6 +342,12 @@ End Function
 Private Function initialize_SQLite() As Boolean
 'initialize the SQLite libs
 Dim InitReturn As Long
-InitReturn = SQLite3Initialize(LibDir)
+#If Win64 Then
+    ' I put the 64-bit version of SQLite.dll under a subdirectory called x64
+    InitReturn = SQLite3Initialize(libDir + "x64")
+#Else
+    InitReturn = SQLite3Initialize(libDir) ' Default path is ThisWorkbook.Path but can specify other path where the .dlls reside.
+#End If
+
 If InitReturn = SQLITE_INIT_OK Then initialize_SQLite = True
 End Function

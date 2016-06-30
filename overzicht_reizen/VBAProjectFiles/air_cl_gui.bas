@@ -64,7 +64,11 @@ Dim rise As Double
 Dim deviation As Double
 Dim s As String
 Dim shp As Shape
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 
 'delete shapes
     Call delShapes
@@ -132,8 +136,8 @@ Dim handl As Long
     End If
 
 'construct julian dates:
-    jd0 = Sqlite3.ToJulianDay(eta + TimeSerial(-1, 0, 0))
-    jd1 = Sqlite3.ToJulianDay(eta + TimeSerial(1, 0, 0))
+    jd0 = SQLite3.ToJulianDay(eta + TimeSerial(-1, 0, 0))
+    jd1 = SQLite3.ToJulianDay(eta + TimeSerial(1, 0, 0))
     
 'construct query
     qstr = "SELECT * FROM " & Cells(51, clm) & " WHERE DateTime > '" _
@@ -143,15 +147,15 @@ Dim handl As Long
     
 'execute query
     On Error Resume Next
-        Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+        SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
         If Err.Number <> 0 Then Exit Sub
     On Error GoTo 0
-    ret = Sqlite3.SQLite3Step(handl)
+    ret = SQLite3.SQLite3Step(handl)
     ii = 0
     Do While ret = SQLITE_ROW
         'Store Values:
-        dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-        rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+        dt = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
+        rise = CDbl(Replace(SQLite3.SQLite3ColumnText(handl, 1), ".", ","))
         For i = 0 To cnt - 1
             If Cells(53 + i, clm + 1) <> vbNullString Then
                 Cells(17 + ii, 9 + i) = _
@@ -162,10 +166,10 @@ Dim handl As Long
         Next i
         Cells(17 + ii, 8) = DST_GMT.ConvertToLT(dt)
         ii = ii + 1
-        ret = Sqlite3.SQLite3Step(handl)
+        ret = SQLite3.SQLite3Step(handl)
         If ii > 30 Then Exit Do
     Loop
-    Sqlite3.SQLite3Finalize handl
+    SQLite3.SQLite3Finalize handl
 
 End Sub
 Private Sub delShapes()

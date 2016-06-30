@@ -83,7 +83,7 @@ End Sub
 Public Sub connect_tidal_ADO(Optional HW As Boolean = False)
 'if hw is set, open the hw database
 Dim s As String
-Dim y As String
+Dim Y As String
 
 If HW Then
     s = TIDAL_DATA_HW_DATABASE_PATH
@@ -91,16 +91,16 @@ Else
     s = TIDAL_DATA_DATABASE_PATH
 End If
 
-y = CALCULATION_YEAR
+Y = CALCULATION_YEAR
 
 'check if database exists
-    If Dir(Replace(s, "<YEAR>", y)) = vbNullString Then
+    If Dir(Replace(s, "<YEAR>", Y)) = vbNullString Then
         'database does not exist
         MsgBox "Er is geen database gevonden voor de getijdegegevens. " _
             & "Controleer de database locatie en het berekeningsjaar in het instellingen menu." _
              , vbCritical
         End
-    ElseIf Right(Replace(s, "<YEAR>", y), 6) <> ".accdb" Then
+    ElseIf Right(Replace(s, "<YEAR>", Y), 6) <> ".accdb" Then
         MsgBox "De database voor getijdegegevens is niet valide. Is dit wel een '.accdb' database?" _
             , vbExclamation
         'end execution
@@ -111,7 +111,7 @@ y = CALCULATION_YEAR
     tidal_data_ADO_next_year_check s
     
 'insert year into db path and open connection
-    s = Replace(s, "<YEAR>", y)
+    s = Replace(s, "<YEAR>", Y)
     Set tidal_conn = New ADODB.Connection
     
     With tidal_conn

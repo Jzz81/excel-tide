@@ -4,7 +4,7 @@ Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} routes_edit_form
    ClientHeight    =   6015
    ClientLeft      =   45
    ClientTop       =   375
-   ClientWidth     =   8925
+   ClientWidth     =   8925.001
    OleObjectBlob   =   "routes_edit_form.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 
 
 Option Explicit
@@ -50,7 +51,7 @@ Private Sub treshold_cb_Click()
     If Not loading Then Call proj.routes_form_treshold_cb_change
 End Sub
 
-Private Sub tresholds_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal y As Single)
+Private Sub tresholds_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
     loading = True
     Call proj.routes_form_tresholds_lb_click
     loading = False

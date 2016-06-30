@@ -657,7 +657,7 @@ End Sub
 Public Sub Add_Calendar_into_Frame(ByVal cFrame As MSForms.Frame)
     Dim i As Long
     Dim v(199) As Variant
-    Dim W As Variant
+    Dim w As Variant
     Dim dTemp As Date
     
     For i = 0 To 199
@@ -687,14 +687,14 @@ Public Sub Add_Calendar_into_Frame(ByVal cFrame As MSForms.Frame)
     
     ReDim mLabelButtons(6)
     ReDim mDayButtons(41)
-    W = fWeekdayName(CInt(lPDayLength))
+    w = fWeekdayName(CInt(lPDayLength))
     
     For i = 0 To 6
         Set mLabelButtons(i) = New cCalendar
         Set mLabelButtons(i).Main = Me
         Set mLabelButtons(i).Obj_CmBl = cFrame.Controls.Add("Forms.Label.1")
         With mLabelButtons(i).Obj_CmBl
-            .Caption = W(((i + lPFirstDay - 1) Mod 7))
+            .Caption = w(((i + lPFirstDay - 1) Mod 7))
             .ForeColor = DayFontColor
             .TextAlign = fmTextAlignCenter
             .BorderStyle = fmBorderStyleSingle
@@ -769,14 +769,14 @@ End Sub
 
 Private Sub ApplyWeekDayLabelChanges()
     Dim i As Long
-    Dim W
+    Dim w
     
-    W = fWeekdayName(CInt(lPDayLength))
+    w = fWeekdayName(CInt(lPDayLength))
     For i = 0 To 6
         If bPRightToLeft Then
-            mLabelButtons(6 - i).Obj_CmBl.Caption = W((i + lPFirstDay - 1) Mod 7)
+            mLabelButtons(6 - i).Obj_CmBl.Caption = w((i + lPFirstDay - 1) Mod 7)
         Else
-            mLabelButtons(i).Obj_CmBl.Caption = W((i + lPFirstDay - 1) Mod 7)
+            mLabelButtons(i).Obj_CmBl.Caption = w((i + lPFirstDay - 1) Mod 7)
         End If
     Next
 End Sub
@@ -959,17 +959,17 @@ Public Sub Move( _
 End Sub
 
 Public Sub NextDay()
-    Dim d As Date
-    d = dValue + 1
-    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
-    Value = d
+    Dim D As Date
+    D = dValue + 1
+    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
+    Value = D
 End Sub
 
 Public Sub NextWeek()
-    Dim d As Date
-    d = dValue + 7
-    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
-    Value = d
+    Dim D As Date
+    D = dValue + 7
+    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
+    Value = D
 End Sub
 
 Public Sub NextMonth()
@@ -977,23 +977,23 @@ Public Sub NextMonth()
 End Sub
 
 Public Sub NextYear()
-    Dim d As Date
-    d = VBA.DateSerial(CheckYear(VBA.Year(dValue) + 1), VBA.Month(dValue), VBA.Day(dValue))
-    Value = d
+    Dim D As Date
+    D = VBA.DateSerial(CheckYear(VBA.Year(dValue) + 1), VBA.Month(dValue), VBA.Day(dValue))
+    Value = D
 End Sub
 
 Public Sub PreviousDay()
-    Dim d As Date
-    d = dValue - 1
-    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
-    Value = d
+    Dim D As Date
+    D = dValue - 1
+    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
+    Value = D
 End Sub
 
 Public Sub PreviousWeek()
-    Dim d As Date
-    d = dValue - 7
-    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
-    Value = d
+    Dim D As Date
+    D = dValue - 7
+    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
+    Value = D
 End Sub
 
 Public Sub PreviousMonth()
@@ -1001,9 +1001,9 @@ Public Sub PreviousMonth()
 End Sub
 
 Public Sub PreviousYear()
-    Dim d As Date
-    d = VBA.DateSerial(CheckYear(VBA.Year(dValue) - 1), VBA.Month(dValue), VBA.Day(dValue))
-    Value = d
+    Dim D As Date
+    D = VBA.DateSerial(CheckYear(VBA.Year(dValue) - 1), VBA.Month(dValue), VBA.Day(dValue))
+    Value = D
 End Sub
 
 Public Sub Today()
@@ -1228,9 +1228,9 @@ End Function
 
 
 Private Function SumMonthsToDate(dDate As Date, Optional lMonth As Long = 1) As Date
-    Dim d As Date
+    Dim D As Date
     
-    d = VBA.DateSerial( _
+    D = VBA.DateSerial( _
             VBA.Year(dDate), _
             VBA.Month(dDate) + lMonth, _
             fMin( _
@@ -1241,8 +1241,8 @@ Private Function SumMonthsToDate(dDate As Date, Optional lMonth As Long = 1) As 
                     VBA.Month(dDate) + 1 + VBA.Abs(lMonth), _
                     0))))
                     
-    If d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d)) Then
-        SumMonthsToDate = d
+    If D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D)) Then
+        SumMonthsToDate = D
     Else
         SumMonthsToDate = dDate
     End If
@@ -1535,11 +1535,11 @@ Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
     End If
 End Sub
 
-Private Function CheckValue(d) As Boolean
-    If VarType(d) = vbDate Then
-        Select Case d
+Private Function CheckValue(D) As Boolean
+    If VarType(D) = vbDate Then
+        Select Case D
             Case 1462 To 74510
-                CheckValue = CLng(d) = d
+                CheckValue = CLng(D) = D
         End Select
     End If
 End Function

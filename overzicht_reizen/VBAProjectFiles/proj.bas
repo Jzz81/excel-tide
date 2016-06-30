@@ -107,9 +107,10 @@ Public Function TIDAL_DATA_HW_DATABASE_PATH() As String
     TIDAL_DATA_HW_DATABASE_PATH = _
         ThisWorkbook.Worksheets("data").Cells(3, 2).text
 End Function
-Public Function LibDir() As String
-    LibDir = _
+Public Function libDir() As String
+    libDir = _
         ThisWorkbook.Worksheets("data").Cells(7, 2).text
+    If Right(libDir, 1) <> "\" Then libDir = libDir & "\"
 End Function
 Public Function SAIL_PLAN_ARCHIVE_DATABASE_PATH() As String
     SAIL_PLAN_ARCHIVE_DATABASE_PATH = _
@@ -282,10 +283,14 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim jd0 As Double
 Dim jd1 As Double
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim ret As Long
 Dim in_window As Boolean
-Dim d(0 To 1) As Date
+Dim D(0 To 1) As Date
 Dim local_eta As Date
 Dim rise As Double
 Dim last_rise As Double
@@ -298,6 +303,7 @@ Dim needed_rise As Double
 Dim deviations As Collection
 Dim B As Boolean
 Dim dev As Double
+Dim lowest_dev As Double
 
 'setup connection and recordset
     If sp_conn Is Nothing Then
@@ -305,7 +311,6 @@ Dim dev As Double
         connect_here = True
     End If
     Set rst = ado_db.ADO_RST
-
 
 'query sail plan
     qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
@@ -323,48 +328,48 @@ Do Until rst.EOF
             local_eta = rst!local_eta
         End If
     'construct evaluate time frame.
-        d(0) = local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
-        d(1) = local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+        D(0) = local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+        D(1) = local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
     
     'setup collection to hold the raw windows
         Set c = New Collection
 
     'construct julian dates (for use in sqlite db)
-        jd0 = Sqlite3.ToJulianDay(d(0))
-        jd1 = Sqlite3.ToJulianDay(d(1))
+        jd0 = SQLite3.ToJulianDay(D(0))
+        jd1 = SQLite3.ToJulianDay(D(1))
     
     'calculate needed_rise
         needed_rise = (rst!ship_draught + rst!ukc) - rst!treshold_depth
         
     'check if database operation is even nessesary
-    'TODO: check if there are missing deviations
-        If needed_rise - deviations_get_lowest_deviation(deviations, rst!deviation_id) <= 0 Then
+        lowest_dev = deviations_get_lowest_deviation(deviations, rst!deviation_id)
+        If needed_rise - lowest_dev <= 0 Then
             'no windows, the treshold has no limitations
             'the whole evaluate time frame is a window
-            c.Add d
+            c.Add D
             'now skip the database query
             GoTo WriteWindows
         End If
     
     'construct query
         qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
-            & jd0 _
+            & Format(jd0, "#.00000000") _
             & "' AND DateTime < '" _
-            & jd1 & "';"
+            & Format(jd1, "#.00000000") & "';"
     
     'prepare and execute query
-        Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-        ret = Sqlite3.SQLite3Step(handl)
+        SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+        ret = SQLite3.SQLite3Step(handl)
     
     'set variables and loop query result
-    d(0) = 0
-    d(1) = 0
+    D(0) = 0
+    D(1) = 0
     in_window = False
     last_dt = 0
     If ret = SQLITE_ROW Then
         'check if the first line of data from the database is not more than 15
         'minutes from the start of the eval period. If so, the data has run out.
-        If Abs(DateDiff("n", Sqlite3.FromJulianDay(jd0), Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0)))) > 15 Then
+        If Abs(DateDiff("n", SQLite3.FromJulianDay(jd0), SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0)))) > 15 Then
             'part of the eval_period has no data
             rst!raw_windows = proj.NO_DATA_STRING
             GoTo next_treshold
@@ -372,24 +377,25 @@ Do Until rst.EOF
         'loop query records
         Do While ret = SQLITE_ROW
             'Store Values:
-                dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-                rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+                dt = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
+                rise = CDbl(Replace(SQLite3.SQLite3ColumnText(handl, 1), ".", ","))
                 dev = deviation_get_interpolated_deviation(deviations, rst!deviation_id, dt)
                 rise = rise + dev
+        
             'check the rise
                 If rise > needed_rise Then
                     If Not in_window Then
-                        d(0) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
+                        D(0) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
                         'switch flag
                         in_window = True
                     End If
                 Else
                     If in_window Then
-                        d(1) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
+                        D(1) = interpolate_date_based_on_draught(last_dt, dt, last_rise, rise, needed_rise)
                         'store and set to 0
-                        c.Add d
-                        d(0) = 0
-                        d(1) = 0
+                        c.Add D
+                        D(0) = 0
+                        D(1) = 0
                         'switch flag
                         in_window = False
                     End If
@@ -398,11 +404,11 @@ Do Until rst.EOF
                 last_dt = dt
                 last_rise = rise
             'move pointer to next record
-                ret = Sqlite3.SQLite3Step(handl)
+                ret = SQLite3.SQLite3Step(handl)
         Loop
         'check if the last line of data from the database is not more than 15
         'from the end of the eval period. If so, the data has run out.
-        If Abs(DateDiff("n", Sqlite3.FromJulianDay(jd1), last_dt)) > 15 Then
+        If Abs(DateDiff("n", SQLite3.FromJulianDay(jd1), last_dt)) > 15 Then
             'part of the eval_period has no data
             rst!raw_windows = proj.NO_DATA_STRING
             GoTo next_treshold
@@ -414,12 +420,12 @@ Do Until rst.EOF
     End If
     
     'check if a window is still open when records ran out
-        If d(0) <> 0 And d(1) = 0 Then
-            d(1) = last_dt
-            c.Add d
+        If D(0) <> 0 And D(1) = 0 Then
+            D(1) = last_dt
+            c.Add D
         End If
     'finalize query
-        Sqlite3.SQLite3Finalize handl
+        SQLite3.SQLite3Finalize handl
     
 WriteWindows:
     'insert the frames into the database
@@ -445,7 +451,7 @@ End Sub
 'deviation routines
 '******************
 Public Function deviations_get_deviation_strings_collection(ByRef rst As ADODB.Recordset) As Collection
-Dim d(0 To 1) As Date
+Dim D(0 To 1) As Date
 Dim jd0 As Double
 Dim jd1 As Double
 Dim i  As Long
@@ -457,11 +463,11 @@ Dim c As Collection
 Set c = New Collection
     
     'get earliest and latest times:
-        d(0) = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
-        jd0 = Sqlite3.ToJulianDay(d(0))
+        D(0) = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+        jd0 = SQLite3.ToJulianDay(D(0))
         rst.MoveLast
-        d(1) = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
-        jd1 = Sqlite3.ToJulianDay(d(1))
+        D(1) = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+        jd1 = SQLite3.ToJulianDay(D(1))
         rst.MoveFirst
     'loop tresholds to find unique deviation id's
         Do Until rst.EOF
@@ -561,7 +567,11 @@ Dim c As Collection
 Dim i As Long
 Dim ii As Long
 Dim dev As Double
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 
 'get hw tables:
 'first check if there is an sqlite database loaded in memory:
@@ -582,8 +592,11 @@ Dim handl As Long
     qstr = "SELECT * FROM deviations WHERE naam IS NOT NULL;"
     rst.Open qstr
 
-jd0 = Sqlite3.ToJulianDay(Now)
-jd1 = Sqlite3.ToJulianDay(Now + TimeSerial(40, 0, 0))
+'construct julian dates between now and 40 hours from now
+'(deviations are known 48 hours beforehand and published every
+'6 hours)
+    jd0 = SQLite3.ToJulianDay(Now)
+    jd1 = SQLite3.ToJulianDay(Now + TimeSerial(40, 0, 0))
 
 load_again:
 Load deviations_validation_form
@@ -692,11 +705,11 @@ With deviations_validation_form
             'sqlite query
                 qstr = "UPDATE " & c(i)(0) & "_hw " _
                         & "SET dev = '" & dev & "' " _
-                        & "WHERE DateTime = '" & Format(Sqlite3.ToJulianDay(dt), "#.00000000") & "';"
+                        & "WHERE DateTime = '" & Format(SQLite3.ToJulianDay(dt), "#.00000000") & "';"
             'prepare and execute query
-                Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-                Sqlite3.SQLite3Step handl
-                Sqlite3.SQLite3Finalize handl
+                SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+                SQLite3.SQLite3Step handl
+                SQLite3.SQLite3Finalize handl
             'ado query
                 qstr = "UPDATE " & c(i)(0) & " " _
                     & "SET dev = " & dev & " " _
@@ -712,9 +725,12 @@ Set rst = Nothing
 Set c = Nothing
 Unload deviations_validation_form
 
+Call ws_gui.display_sail_plan
+
 End Sub
 
-Private Function deviation_get_interpolated_deviation(ByRef c As Collection, id As Long, dt As Date) As Double
+Private Function deviation_get_interpolated_deviation(ByRef c As Collection, _
+                                        id As Long, dt As Date) As Double
 'will collect the interpolated deviation
 Dim i As Long
 Dim ii As Long
@@ -774,7 +790,11 @@ Dim c As Collection
 Dim c1 As Collection
 Dim v() As Variant
 Dim devs As String
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 
 'construct query for deviations
     qstr = "SELECT * FROM " & tidal_data_point & "_hw WHERE DateTime > '" _
@@ -783,22 +803,22 @@ Dim handl As Long
         & jd1 & "';"
 
 'prepare and execute query
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-    ret = Sqlite3.SQLite3Step(handl)
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+    ret = SQLite3.SQLite3Step(handl)
 
 'check if this point has a hw table:
     If ret <> SQLITE_MISUSE Then
         'store deviations
             Do While ret = SQLITE_ROW
-                dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-                ext = Sqlite3.SQLite3ColumnText(handl, 1)
-                dev = Sqlite3.SQLite3ColumnText(handl, 2)
+                dt = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
+                ext = SQLite3.SQLite3ColumnText(handl, 1)
+                dev = SQLite3.SQLite3ColumnText(handl, 2)
                 
                 devs = devs & Format(dt, "dd-mm-yyyy hh:nn") _
                     & ";" & ext & ";" & dev & ";"
-                ret = Sqlite3.SQLite3Step(handl)
+                ret = SQLite3.SQLite3Step(handl)
             Loop
-            Sqlite3.SQLite3Finalize handl
+            SQLite3.SQLite3Finalize handl
             If Len(devs) > 0 Then
                 devs = Left(devs, Len(devs) - 1)
             End If
@@ -808,7 +828,11 @@ Dim handl As Long
     End If
 deviations_retreive_devs_from_db = devs
 End Function
-Private Function interpolate_date_based_on_draught(d0 As Date, d1 As Date, r0 As Double, r1 As Double, needed_rise As Double) As Date
+Private Function interpolate_date_based_on_draught(ByVal d0 As Date, _
+                                                ByVal d1 As Date, _
+                                                ByVal r0 As Double, _
+                                                ByVal r1 As Double, _
+                                                ByVal needed_rise As Double) As Date
 'returns the interpolated date based on the needed_rise
     If d0 = 0 Or r0 = 0 Then
         interpolate_date_based_on_draught = d1
@@ -859,7 +883,7 @@ Dim i As Long
 
 End Function
 
-Public Sub sail_plan_calculate_tidal_window(id As Long)
+Public Sub sail_plan_calculate_tidal_window(id As Long, Optional ByRef Succes As Boolean)
 'will loop the tresholds in the route to find the possible window
 'result is a global tidal window, which is valid for all tresholds
 'in the sail plan
@@ -924,6 +948,7 @@ Dim v As Variant
 
 'if a valid eta is returned, insert global window into database
     If ETA0 <> 0 Then
+        Succes = True
         'inset global window into database:
         rst.MoveFirst
         Do Until rst.EOF
@@ -931,6 +956,8 @@ Dim v As Variant
             rst!tidal_window_end = v(2) + rst!time_to_here
             rst.MoveNext
         Loop
+    Else
+        Succes = False
     End If
 
 'close and null recordset and connection
@@ -944,7 +971,7 @@ Public Function sail_plan_loop_check_tresholds(rst As ADODB.Recordset, ETA0 As D
 'will loop all tresholds until it finds a window that does not allow the eta. Return the first
 'allowable eta along with the global window (at treshold 0)
 Dim eta As Date
-Dim d As Variant
+Dim D As Variant
 Dim i As Long
 Dim ii As Long
 Dim ss1() As String
@@ -964,26 +991,26 @@ TryAgain:
     'construct eta to calculate
         eta = ETA0 + rst!time_to_here
     'get first allowable eta on the treshold (will return current eta if it fits into a window) and the window around it
-        d = sail_plan_check_treshold_window(windows(i + 1), eta, rst!min_tidal_window_pre, rst!min_tidal_window_after, rst!rta)
+        D = sail_plan_check_treshold_window(windows(i + 1), eta, rst!min_tidal_window_pre, rst!min_tidal_window_after, rst!rta)
     'if no array is returned, there is no window available on or after this eta for this treshold
-        If Not IsArray(d) Then
+        If Not IsArray(D) Then
             'there is no tidal window available
             Exit Function
         End If
     'check if found eta is bigger (later) than the current eta.
     'If so, the process should start again.
-        If d(1) > eta Then
+        If D(1) > eta Then
             'return the new eta and global window
             sail_plan_loop_check_tresholds = _
-                Array(d(0) - rst!time_to_here, _
-                        d(1) - rst!time_to_here, _
-                        d(2) - rst!time_to_here)
+                Array(D(0) - rst!time_to_here, _
+                        D(1) - rst!time_to_here, _
+                        D(2) - rst!time_to_here)
             Exit Function
         End If
     'current eta is still valid.
     'store global window start and end, if it is more restricting than the current global window
-        If d(0) - rst!time_to_here > gl_win_start Then gl_win_start = d(0) - rst!time_to_here
-        If d(2) - rst!time_to_here < gl_win_end Or gl_win_end = 0 Then gl_win_end = d(2) - rst!time_to_here
+        If D(0) - rst!time_to_here > gl_win_start Then gl_win_start = D(0) - rst!time_to_here
+        If D(2) - rst!time_to_here < gl_win_end Or gl_win_end = 0 Then gl_win_end = D(2) - rst!time_to_here
     
     'parse current windows if there is one in force
         If rst!current_window And Not IsArray(gl_cur_win_start) Then
@@ -1038,18 +1065,18 @@ For i = 0 To UBound(windows)
     'parse window
         ss = Split(windows(i), ",")
     'check if the end of the window is before the eta + the min_pre. If so, skip.
-        If CDate(ss(1)) < eta + min_aft Then GoTo NextWindow
+        If CDate(ss(1)) < eta + min_pre Then GoTo NextWindow
     'check if window is long enough. If not, skip.
         If CDate(ss(1)) - CDate(ss(0)) < min_pre + min_aft Then GoTo NextWindow
     'check if a rta is in force
         If Not IsNull(rta) Then
             'if the start of the window is after the rta, exit
                 If CDate(ss(0)) + min_aft > rta Then Exit For
-            'if the end of window if before the rta, goto next
+            'if the end of window is before the rta, goto next
                 If CDate(ss(1)) - min_pre < rta Then GoTo NextWindow
         End If
     'check if eta is allowed
-        If CDate(ss(0)) <= eta - min_pre Then
+        If CDate(ss(0)) <= eta - min_aft Then
             'eta is allowed, return eta
             sail_plan_check_treshold_window = Array(CDate(ss(0)), eta, CDate(ss(1)))
             Exit Function
@@ -1057,7 +1084,7 @@ For i = 0 To UBound(windows)
             'eta is not allowed; it is before the beginning of this window.
             'Return first available eta, which is the start of the window
             'plus the minimal window before the eta.
-            sail_plan_check_treshold_window = Array(CDate(ss(0)), CDate(ss(0)) + min_pre, CDate(ss(1)))
+            sail_plan_check_treshold_window = Array(CDate(ss(0)), CDate(ss(0)) + min_aft, CDate(ss(1)))
             Exit Function
         End If
 NextWindow:
@@ -1074,7 +1101,11 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim ctr As MSForms.control
 Dim t As Long
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim ret As Long
 Dim s As String
 
@@ -1089,35 +1120,34 @@ Set rst = ado_db.ADO_RST
 sail_plan_edit_form.window_pre_tb.text = "01:00"
 sail_plan_edit_form.window_after_tb.text = "00:00"
 
-qstr = "SELECT * FROM ship_types ORDER BY naam;"
-rst.Open qstr
-
 'insert the ship types and their id's into the cb
-With sail_plan_edit_form.ship_types_cb
-    Do Until rst.EOF
-        .AddItem
-        .List(.ListCount - 1, 0) = rst!naam
-        .List(.ListCount - 1, 1) = rst!id
-        rst.MoveNext
-    Loop
-    If .ListCount > 0 Then .ListIndex = 0
-End With
-
-rst.Close
+    qstr = "SELECT * FROM ship_types ORDER BY naam;"
+    rst.Open qstr
+    With sail_plan_edit_form.ship_types_cb
+        Do Until rst.EOF
+            .AddItem
+            .List(.ListCount - 1, 0) = rst!naam
+            .List(.ListCount - 1, 1) = rst!id
+            .List(.ListCount - 1, 2) = construct_speed_string_from_db(rst!id)
+            rst.MoveNext
+        Loop
+        If .ListCount > 0 Then .ListIndex = 0
+    End With
+    rst.Close
 
 'insert the routes and their id's into the cb
-qstr = "SELECT * FROM routes WHERE treshold_index = 0 ORDER BY naam;"
-rst.Open qstr
-With sail_plan_edit_form.routes_cb
-    Do Until rst.EOF
-        .AddItem
-        .List(.ListCount - 1, 0) = rst!naam
-        .List(.ListCount - 1, 1) = rst!id
-        rst.MoveNext
-    Loop
-    If .ListCount > 0 Then .ListIndex = 0
-End With
-rst.Close
+    qstr = "SELECT * FROM routes WHERE treshold_index = 0 ORDER BY naam;"
+    rst.Open qstr
+    With sail_plan_edit_form.routes_cb
+        Do Until rst.EOF
+            .AddItem
+            .List(.ListCount - 1, 0) = rst!naam
+            .List(.ListCount - 1, 1) = rst!id
+            rst.MoveNext
+        Loop
+        If .ListCount > 0 Then .ListIndex = 0
+    End With
+    rst.Close
 
 'insert the speed labels and textboxes
 qstr = "SELECT * FROM speeds;"
@@ -1183,15 +1213,15 @@ End If
 'construct query
 qstr = "SELECT name FROM sqlite_master WHERE type='table';"
 'execute query
-Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-ret = Sqlite3.SQLite3Step(handl)
+SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+ret = SQLite3.SQLite3Step(handl)
     
 Do While ret = SQLITE_ROW
-    s = Sqlite3.SQLite3ColumnText(handl, 0)
+    s = SQLite3.SQLite3ColumnText(handl, 0)
     If Right(s, 3) = "_hw" Then
         sail_plan_edit_form.hw_list_cb.AddItem Left(s, Len(s) - 3)
     End If
-    ret = Sqlite3.SQLite3Step(handl)
+    ret = SQLite3.SQLite3Step(handl)
 Loop
 
 If Show Then sail_plan_edit_form.Show
@@ -1206,7 +1236,34 @@ endsub:
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
+Private Function construct_speed_string_from_db(id As Long) As String
+'will construct a string from the database
+Dim qstr As String
+Dim rst As ADODB.Recordset
+Dim i As Long
+Dim s As String
 
+'setup and open rst
+    Set rst = ado_db.ADO_RST
+    qstr = "SELECT * FROM ship_types WHERE id = " & id & ";"
+    rst.Open qstr
+
+'loop to gather speeds
+    For i = 0 To 9
+        s = s & rst.Fields("speed_" & i).Value & ";"
+    Next i
+
+'cut last character
+    s = Left(s, Len(s) - 1)
+
+'close and null rst
+    rst.Close
+    Set rst = Nothing
+
+'return speed string
+    construct_speed_string_from_db = s
+
+End Function
 Public Sub sail_plan_edit_plan(id As Long)
 'load the sail plan form and load data for the selected sail plan
 Dim rst As ADODB.Recordset
@@ -1214,6 +1271,13 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim ss() As String
 Dim ctr As MSForms.control
+
+Dim min_window_pre As Date
+Dim max_window_pre As Date
+Dim min_window_aft As Date
+Dim max_window_aft As Date
+
+Dim min_aft_dif As Boolean
 
 'setup connection and recordset
     If sp_conn Is Nothing Then
@@ -1247,10 +1311,7 @@ Dim ctr As MSForms.control
                 End If
             Next ctr
         'route and window variables
-            'TODO: check if route naam is in the cb
             .routes_cb.Value = rst!route_naam
-            .window_pre_tb = Format(rst!min_tidal_window_pre, "hh:nn")
-            .window_after_tb = Format(rst!min_tidal_window_after, "hh:nn")
             .eta_date_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "dd-mm-yyyy")
             .eta_time_tb = Format(DST_GMT.ConvertToLT(rst!local_eta), "hh:nn")
         'loop all tresholds to fill route_lb and check for
@@ -1283,6 +1344,7 @@ Dim ctr As MSForms.control
                     .rta_tresholds_cb.Value = rst!treshold_name
                 End If
                 .route_lb.List(rst!treshold_index * 2, 1) = rst!UKC_value & rst!UKC_unit
+                
                 .route_lb.List(rst!treshold_index * 2, 4) = Format(rst!min_tidal_window_after, "hh:nn")
                 .route_lb.List(rst!treshold_index * 2, 5) = Format(rst!min_tidal_window_pre, "hh:nn")
                 If rst!treshold_index > 0 Then
@@ -1292,6 +1354,9 @@ Dim ctr As MSForms.control
                 
                 rst.MoveNext
             Loop
+            
+            Call .check_route_list_tidal_windows
+
         .Show
     End With
 
@@ -1474,97 +1539,98 @@ With sail_plan_edit_form
     Do Until rst1.EOF
         rst3.AddNew
         'get sail plan id
-        If rst1!treshold_index = 0 Then
-            sp_id = rst3!Key
-        End If
-        rst3!id = sp_id
+            If rst1!treshold_index = 0 Then
+                sp_id = rst3!Key
+            End If
+            rst3!id = sp_id
         
-        rst3!treshold_index = rst1!treshold_index
-        rst3!route_shift = rst1!Shift
+        'treshold id and index
+            rst3!treshold_index = rst1!treshold_index
+            rst3!treshold_id = rst1!treshold_id
         
         'UKC:
         'get treshold UKC value and unit from userform
-        ukc = .route_lb.List(rst1!treshold_index * 2, 1)
-        rst3!UKC_unit = Right(ukc, 1)
-        rst3!UKC_value = Left(ukc, Len(ukc) - 1)
+            ukc = .route_lb.List(rst1!treshold_index * 2, 1)
+            rst3!UKC_unit = Right(ukc, 1)
+            rst3!UKC_value = Left(ukc, Len(ukc) - 1)
         
-        rst3!min_tidal_window_after = CDate(.route_lb.List(rst1!treshold_index * 2, 5))
-        rst3!min_tidal_window_pre = CDate(.route_lb.List(rst1!treshold_index * 2, 4))
-        
-        'treshold parameters
-        qstr = "SELECT * FROM tresholds WHERE id = " & rst1!treshold_id & ";"
-        rst2.Open qstr
-            rst3!treshold_name = rst2!naam
-            If rst1!ingoing Then
-                rst3!treshold_depth = rst2!depth_ingoing
-                rst3!route_ingoing = True
-            Else
-                rst3!treshold_depth = rst2!depth_outgoing
-            End If
-            
-            rst3!deviation_id = rst2!deviation_id
-            
-            tidal_data_point = ado_db.get_table_name_from_id(rst2!tidal_data_point_id, "tidal_points")
-            rst3!tidal_data_point = tidal_data_point
-        rst2.Close
+        'tidal windows (from userform)
+            rst3!min_tidal_window_after = CDate(.route_lb.List(rst1!treshold_index * 2, 4))
+            rst3!min_tidal_window_pre = CDate(.route_lb.List(rst1!treshold_index * 2, 5))
         
         'calculate distance to this point:
-        If rst1!connection_id = 0 Then
-            'first treshold
-            distance = 0
-        Else
-            'get distance from connections
-            qstr = "SELECT * FROM connections WHERE id = " & rst1!connection_id & ";"
-            rst2.Open qstr
-            distance = rst2!distance
-            rst2.Close
-        End If
-        route_distance = route_distance + distance
-        If rst1!treshold_index > 0 Then
-            'insert eta and time on route
-            'use speed from previous line in the listbox always
-            speed_id = ado_db.get_table_id_from_name(.route_lb.List(rst1!treshold_index * 2 - 1, 2), "speeds")
-            rst3!ship_speed_id = speed_id
-            rst3!ship_speed = speeds(speed_id)
-            rst3!time_to_here = TimeSerial(0, distance / rst3!ship_speed * 60, 0) + route_time
-            rst3!local_eta = eta + rst3!time_to_here
-            route_time = rst3!time_to_here
-        Else
-            rst3!ship_speed = 0
-            rst3!time_to_here = 0
-            rst3!local_eta = eta
-        End If
-        rst3!distance_to_here = route_distance
+            If rst1!connection_id = 0 Then
+                'first treshold
+                distance = 0
+            Else
+                'get distance from connections
+                qstr = "SELECT * FROM connections WHERE id = " & rst1!connection_id & ";"
+                rst2.Open qstr
+                distance = rst2!distance
+                rst2.Close
+            End If
+            route_distance = route_distance + distance
+        
+        'calculate time and eta on this treshold
+            If rst1!treshold_index > 0 Then
+                'insert eta and time on route
+                'use speed from previous line in the listbox always
+                speed_id = ado_db.get_table_id_from_name(.route_lb.List(rst1!treshold_index * 2 - 1, 2), "speeds")
+                rst3!ship_speed_id = speed_id
+                rst3!ship_speed = speeds(speed_id)
+                rst3!time_to_here = TimeSerial(0, distance / rst3!ship_speed * 60, 0) + route_time
+                rst3!local_eta = eta + rst3!time_to_here
+                route_time = rst3!time_to_here
+            Else
+                rst3!ship_speed = 0
+                rst3!time_to_here = 0
+                rst3!local_eta = eta
+            End If
+        
+        'distance
+            rst3!distance_to_here = route_distance
+        
         'mark rta or current window if applicable
-        If .rta_ob Then
-            If rst3!treshold_name = .rta_tresholds_cb.Value Then
-                rst3!rta_treshold = True
-                rst3!rta = DST_GMT.ConvertToGMT(CDate(.rta_date_tb) + CDate(.rta_time_tb))
-            End If
-        ElseIf .current_ob Then
-            If rst3!treshold_name = .current_tresholds_cb.Value Then
-                rst3!current_window = True
-                'positive value is after the hw, negative is before
-                rst3!current_window_pre = CDate(.current_before_tb)
-                If .current_before_cb.Value = "na" Then
-                    rst3!current_window_pre_positive = True
+            If .rta_ob Then
+                Debug.Print ";" & .rta_tresholds_cb.List(.rta_tresholds_cb.ListIndex, 1) & ";", _
+                    ";" & rst3!treshold_id & ";", _
+                    val(.rta_tresholds_cb.List(.rta_tresholds_cb.ListIndex, 1)), _
+                    val(rst3!treshold_id)
+                If val(rst3!treshold_id) = val(.rta_tresholds_cb.List(.rta_tresholds_cb.ListIndex, 1)) Then
+                    Debug.Print "rta for this treshold"
+                    rst3!rta_treshold = True
+                    rst3!rta = DST_GMT.ConvertToGMT(CDate(.rta_date_tb) + CDate(.rta_time_tb))
                 End If
-                rst3!current_window_after = CDate(.current_after_tb)
-                If .current_after_cb.Value = "na" Then
-                    rst3!current_window_after_positive = True
+            ElseIf .current_ob Then
+                If rst3!treshold_name = .current_tresholds_cb.Value Then
+                    rst3!current_window = True
+                    'positive value is after the hw, negative is before
+                    rst3!current_window_pre = CDate(.current_before_tb)
+                    If .current_before_cb.Value = "na" Then
+                        rst3!current_window_pre_positive = True
+                    End If
+                    rst3!current_window_after = CDate(.current_after_tb)
+                    If .current_after_cb.Value = "na" Then
+                        rst3!current_window_after_positive = True
+                    End If
+                    rst3!current_window_data_point = .hw_list_cb
                 End If
-                rst3!current_window_data_point = .hw_list_cb
             End If
-        End If
-        rst3!ship_speeds = aux_.convert_array_to_seperated_string(speeds, ";")
+        
+        'speeds
+            rst3!ship_speeds = aux_.convert_array_to_seperated_string(speeds, ";")
 
         rst1.MoveNext
     Loop
     rst3.Update
     rst3.Close
     
+    rst1.MoveFirst
+    
     'set route data
     sp_conn.Execute "UPDATE sail_plans SET route_naam = '" & .routes_cb.List(.routes_cb.ListIndex, 0) & "' WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET route_ingoing = " & CLng(rst1!ingoing) & " WHERE id = '" & sp_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET route_shift = " & CLng(rst1!Shift) & " WHERE id = '" & sp_id & "';"
     
     'set ship data
     sp_conn.Execute "UPDATE sail_plans SET ship_naam = '" & .ships_cb.Value & "' WHERE id = '" & sp_id & "';"
@@ -1574,6 +1640,9 @@ With sail_plan_edit_form
     sp_conn.Execute "UPDATE sail_plans SET ship_boa= " & Replace(.TextBox5.text, ",", ".") & " WHERE id = '" & sp_id & "';"
     sp_conn.Execute "UPDATE sail_plans SET ship_type= '" & .ship_types_cb.Value & "' WHERE id = '" & sp_id & "';"
     
+    'set tresholds parameters (depth and names)
+    Call sail_plan_insert_treshold_parameters(sp_id)
+
     'set ship draught and ukc
     Call proj.sail_plan_db_set_ship_draught_and_ukc(sp_id, CDbl(Replace(.TextBox6.text, ".", ",")))
     If .rta_ob Then
@@ -1582,9 +1651,6 @@ With sail_plan_edit_form
         Call proj.sail_plan_db_fill_in_current_window(sp_id)
     End If
     rst1.Close
-    
-    'insert standing deviations:
-    Call ws_gui.insert_deviations_into_sail_plan(sp_id)
     
 End With
 
@@ -1603,6 +1669,55 @@ Set rst2 = Nothing
 Set rst3 = Nothing
 
 If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Sub
+Private Sub sail_plan_insert_treshold_parameters(id As Long)
+'will insert treshold parameters for all tresholds in sail plan with id id
+Dim qstr As String
+Dim rst1 As ADODB.Recordset
+Dim rst2 As ADODB.Recordset
+Dim ingoing As Boolean
+
+'open recordset for sail plan
+    Set rst1 = ado_db.ADO_RST
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst1.Open qstr
+
+'get ingoing setting
+    ingoing = rst1!route_ingoing
+
+'setup recordset
+    Set rst2 = ado_db.ADO_RST
+
+'loop sail plan
+Do Until rst1.EOF
+    'get treshold
+        qstr = "SELECT * FROM tresholds WHERE id = " & rst1!treshold_id & ";"
+        rst2.Open qstr
+    
+    'insert name
+        rst1!treshold_name = rst2!naam
+    
+    'insert depth
+        If ingoing Then
+            rst1!treshold_depth = rst2!depth_ingoing
+        Else
+            rst1!treshold_depth = rst2!depth_outgoing
+        End If
+    
+    'insert deviation id
+        rst1!deviation_id = rst2!deviation_id
+    
+    'insert tidal data point
+        rst1!tidal_data_point = _
+            ado_db.get_table_name_from_id(rst2!tidal_data_point_id, "tidal_points")
+    
+    'close recordset
+        rst2.Close
+    
+    rst1.MoveNext
+Loop
+rst1.Close
 
 End Sub
 Private Sub insert_ship_in_database(naam As String, _
@@ -1778,7 +1893,10 @@ With sail_plan_edit_form
         .route_lb.List(.route_lb.ListCount - 1, 0) = s
         'add name to the cbs
         .current_tresholds_cb.AddItem s
-        .rta_tresholds_cb.AddItem s
+        .rta_tresholds_cb.AddItem
+        .rta_tresholds_cb.List(.rta_tresholds_cb.ListCount - 1, 0) = s
+        .rta_tresholds_cb.List(.rta_tresholds_cb.ListCount - 1, 1) = rst!treshold_id
+        
         'UKC value and unit
         .route_lb.List(.route_lb.ListCount - 1, 1) = rst!UKC_value & rst!UKC_unit
         'required tidal window
@@ -1804,7 +1922,7 @@ End With
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
-Public Sub sail_plan_form_ship_cb_exit()
+Public Sub sail_plan_form_ship_cb_change()
 Dim i As Long
 Dim id As Long
 Dim ss() As String
@@ -1824,7 +1942,12 @@ With sail_plan_edit_form
                 End If
             Next i
         'speeds
-            Call sail_plan_form_set_speeds_tbs
+            ss = Split(.ships_cb.List(.ships_cb.ListIndex, 7), ";")
+            For Each ctr In .speedframe.Controls
+                If TypeName(ctr) = "TextBox" Then
+                    ctr.text = ss(CLng(Replace(ctr.Name, "speed_", vbNullString)))
+                End If
+            Next ctr
     Else
         .TextBox2 = vbNullString
         .TextBox3 = vbNullString
@@ -1840,21 +1963,22 @@ With sail_plan_edit_form
 End With
 
 End Sub
-Public Sub sail_plan_form_set_speeds_tbs()
-'insert the data from the ship_type_cb into the
-'speeds tbs
+Public Sub sail_plan_form_ship_type_cb_change()
+'insert the speeds from the cb into speed frames
 Dim ss() As String
 Dim ctr As MSForms.control
 With sail_plan_edit_form
-    If .ship_types_cb.ListIndex < 1 Then Exit Sub
-    ss = Split(.ships_cb.List(.ship_types_cb.ListIndex, 7), ";")
+    If .ship_types_cb.ListIndex < 0 Then Exit Sub
+    ss = Split(.ship_types_cb.List(.ship_types_cb.ListIndex, 2), ";")
     For Each ctr In .speedframe.Controls
         If TypeName(ctr) = "TextBox" Then
             ctr.text = ss(CLng(Replace(ctr.Name, "speed_", vbNullString)))
         End If
     Next ctr
 End With
+
 End Sub
+
 '***************************
 'sail plan database routines
 '***************************
@@ -1868,7 +1992,11 @@ Dim start_frame As Date
 Dim end_frame As Date
 Dim jd0 As Double
 Dim jd1 As Double
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim ret As Long
 Dim dt As Date
 Dim s As String
@@ -1888,8 +2016,8 @@ start_frame = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 0)
 end_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 0)
 
 'construct julian dates:
-jd0 = Sqlite3.ToJulianDay(start_frame)
-jd1 = Sqlite3.ToJulianDay(end_frame)
+jd0 = SQLite3.ToJulianDay(start_frame)
+jd1 = SQLite3.ToJulianDay(end_frame)
 
 'construct query
 qstr = "SELECT * FROM " & rst!current_window_data_point & "_hw WHERE DateTime > '" _
@@ -1899,13 +2027,13 @@ qstr = "SELECT * FROM " & rst!current_window_data_point & "_hw WHERE DateTime > 
     & "AND Extr = 'HW';"
 
 'execute query
-Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-ret = Sqlite3.SQLite3Step(handl)
+SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+ret = SQLite3.SQLite3Step(handl)
 
 If ret = SQLITE_ROW Then
     Do While ret = SQLITE_ROW
         'Store Values:
-        dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
+        dt = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
         If rst!current_window_pre_positive Then
             s = s & CDate(dt + rst!current_window_pre) & ","
         Else
@@ -1916,14 +2044,14 @@ If ret = SQLITE_ROW Then
         Else
             s = s & CDate(dt - rst!current_window_after) & ";"
         End If
-        ret = Sqlite3.SQLite3Step(handl)
+        ret = SQLite3.SQLite3Step(handl)
     Loop
     If Len(s) > 0 Then s = Left(s, Len(s) - 1)
     rst!raw_current_windows = s
     rst.Update
 End If
 
-Sqlite3.SQLite3Finalize handl
+SQLite3.SQLite3Finalize handl
 
 exitsub:
 rst.Close
@@ -2240,9 +2368,11 @@ With routes_edit_form
     .CommandButton1.Caption = "invoegen"
     .Label2.Caption = "In te voegen drempel:"
     .tresholds_lb.ListIndex = -1
-    'fill combobox with tresholds that connect to the last in the list
-    Call proj.routes_form_fill_treshold_cb( _
-        ado_db.get_table_id_from_name(.tresholds_lb.List(.tresholds_lb.ListCount - 1, 0), "tresholds"))
+    If .tresholds_lb.ListCount > 0 Then
+        'fill combobox with tresholds that connect to the last in the list
+        Call proj.routes_form_fill_treshold_cb( _
+            ado_db.get_table_id_from_name(.tresholds_lb.List(.tresholds_lb.ListCount - 1, 0), "tresholds"))
+    End If
 End With
 
 End Sub
@@ -2434,12 +2564,22 @@ With routes_edit_form
         If .tresholds_lb.List(.tresholds_lb.ListIndex, 0) <> .treshold_cb.Value Then
             If .tresholds_lb.ListIndex = .tresholds_lb.ListCount - 1 Then
                 'this is the last treshold. Just change.
-                .tresholds_lb.List(.tresholds_lb.ListIndex, 0) = .treshold_cb.Value
+                'name
+                    .tresholds_lb.List(.tresholds_lb.ListIndex, 0) = _
+                        .treshold_cb.List(.treshold_cb.ListIndex, 0)
+                'connection id
+                    .tresholds_lb.List(.tresholds_lb.ListIndex, 4) = _
+                        .treshold_cb.List(.treshold_cb.ListIndex, 1)
             Else
                 'this is not the last waypoint. Rest of the route has to
                 'be deleted.
                 If MsgBox("U wijzigt een drempel in een bestaande route. De achterliggende drempels moeten worden gewist. Wilt u doorgaan?", vbYesNo) = vbYes Then
-                    .tresholds_lb.List(.tresholds_lb.ListIndex, 0) = .treshold_cb.Value
+                    'name
+                        .tresholds_lb.List(.tresholds_lb.ListIndex, 0) = _
+                            .treshold_cb.List(.treshold_cb.ListIndex, 0)
+                    'connection id
+                        .tresholds_lb.List(.tresholds_lb.ListIndex, 4) = _
+                            .treshold_cb.List(.treshold_cb.ListIndex, 1)
                     'delete all following tresholds
                     For i = .tresholds_lb.ListIndex + 1 To .tresholds_lb.ListCount - 1
                         .tresholds_lb.RemoveItem (.tresholds_lb.ListIndex + 1)
@@ -2450,7 +2590,6 @@ With routes_edit_form
                 End If
             End If
         End If
-        Exit Sub
     End If
     
     'get default values of this waypoint
@@ -2983,7 +3122,7 @@ Dim id As Long
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim d As Double
+Dim D As Double
 
 If sp_conn Is Nothing Then
     Call ado_db.connect_sp_ADO
@@ -2993,56 +3132,76 @@ Set rst = ado_db.ADO_RST
 
 
 With tresholds_edit_form
-    'find selected treshold
-    For i = 0 To .tresholds_lb.ListCount - 1
-        If .tresholds_lb.Selected(i) Then
-            id = .tresholds_lb.List(i, 0)
-            Exit For
-        End If
-    Next i
-    qstr = "SELECT * FROM tresholds WHERE id = " & id & ";"
-    rst.Open qstr
-    'new treshold?
-    If rst.RecordCount = 0 Then
-        rst.AddNew
-    ElseIf rst!naam <> .TextBox1.text Then
-        If MsgBox("U heeft een nieuwe naam ingegeven voor de drempel." _
-                    & "Wilt u een nieuwe drempel maken met deze nieuwe naam?", _
-                    vbYesNo) = vbYes Then
-            rst.AddNew
-        End If
-    End If
-    If IsNull(rst!naam) Or rst!naam <> .TextBox1.text Then
-        If ado_db.check_table_name_exists(.TextBox1.text, "tresholds") Then
-            MsgBox "De ingegeven naam bestaat al en kan niet dubbel gebruikt worden", vbOKOnly
-            rst.Delete
-            rst.Close
+    'validate input
+        If .TextBox2.text = vbNullString Or _
+                .TextBox2.text = vbNullString Or _
+                .TextBox2.text = vbNullString Or _
+                .TextBox2.text = vbNullString Then
             GoTo exitsub
         End If
-    End If
-    rst!naam = .TextBox1.text
-    d = CDbl(Replace(.TextBox2.text, ".", ","))
-    If IsNull(rst!depth_ingoing) Or rst!depth_ingoing <> d Then rst!depth_rev_date = Now
-    rst!depth_ingoing = d
+    'find selected treshold (if any)
+        If .tresholds_lb.ListIndex >= 0 Then
+            id = .tresholds_lb.List(.tresholds_lb.ListIndex, 0)
+        End If
+    'query db for this treshold
+        qstr = "SELECT * FROM tresholds WHERE id = " & id & ";"
+        rst.Open qstr
+    'new treshold?
+        If rst.RecordCount = 0 Then
+            rst.AddNew
+        ElseIf rst!naam <> .TextBox1.text Then
+            If MsgBox("U heeft een nieuwe naam ingegeven voor de drempel." _
+                        & " Wilt u een nieuwe drempel maken met deze nieuwe naam?", _
+                        vbYesNo) = vbYes Then
+                rst.AddNew
+            End If
+        End If
+    'validate and insert name
+        If IsNull(rst!naam) Or rst!naam <> .TextBox1.text Then
+            If ado_db.check_table_name_exists(.TextBox1.text, "tresholds") Then
+                MsgBox "De ingegeven naam bestaat al en kan niet dubbel gebruikt worden", vbOKOnly
+                rst.Delete
+                rst.Close
+                GoTo exitsub
+            End If
+        End If
+        rst!naam = .TextBox1.text
+    'validate and insert depths (store rev date if nessesary)
+        D = val(.TextBox2.text)
+        If IsNull(rst!depth_ingoing) Or rst!depth_ingoing <> D Then rst!depth_rev_date = Now
+        rst!depth_ingoing = D
+        
+        D = val(.TextBox3.text)
+        If IsNull(rst!depth_outgoing) Or rst!depth_outgoing <> D Then rst!depth_rev_date = Now
+        rst!depth_outgoing = D
+        
+        D = val(.TextBox4.text)
+        If IsNull(rst!depth_strive) Or rst!depth_strive <> D Then rst!depth_rev_date = Now
+        rst!depth_strive = D
     
-    d = CDbl(Replace(.TextBox3.text, ".", ","))
-    If IsNull(rst!depth_outgoing) Or rst!depth_outgoing <> d Then rst!depth_rev_date = Now
-    rst!depth_outgoing = d
+    'validate and insert ukc
+        rst!UKC_default_value = val(.TextBox5.text)
+        rst!UKC_default_unit = .UKC_unit_cb.Value
+    'store default speed
+        rst!speed_id = ado_db.get_table_id_from_name(.speeds_cmb.Value, "speeds")
+    'store deviation id
+        rst!deviation_id = ado_db.get_table_id_from_name(.deviations_cmb.Value, "deviations")
+    'store tidal data point
+        rst!tidal_data_point_id = ado_db.get_table_id_from_name(.tidal_data_cmb.Value, "tidal_points")
+    'store logging setting
+        rst!log_in_statistics = .ATA_cb
     
-    d = CDbl(Replace(.TextBox4.text, ".", ","))
-    If IsNull(rst!depth_strive) Or rst!depth_strive <> d Then rst!depth_rev_date = Now
-    rst!depth_strive = d
-    
-    rst!UKC_default_value = CDbl(Replace(.TextBox5.text, ".", ","))
-    rst!UKC_default_unit = .UKC_unit_cb.Value
-    rst!speed_id = ado_db.get_table_id_from_name(.speeds_cmb.Value, "speeds")
-    rst!deviation_id = ado_db.get_table_id_from_name(.deviations_cmb.Value, "deviations")
-    rst!tidal_data_point_id = ado_db.get_table_id_from_name(.tidal_data_cmb.Value, "tidal_points")
-    rst!log_in_statistics = .ATA_cb
+    'store new treshold depths
+        Call sail_plan_insert_treshold_depths_in_active_sail_plans(rst!id, _
+                                                                rst!naam, _
+                                                                rst!depth_ingoing, _
+                                                                rst!depth_outgoing, _
+                                                                rst!depth_strive)
     rst.Update
     rst.Close
-    Call proj.treshold_form_fill_tresholds_lb
-    Call proj.treshold_form_select_treshold_in_lb(.TextBox1.text)
+    'fill listbox and re-select treshold
+        Call proj.treshold_form_fill_tresholds_lb
+        Call proj.treshold_form_select_treshold_in_lb(.TextBox1.text)
 End With
 
 exitsub:
@@ -3050,7 +3209,37 @@ exitsub:
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Sub
+Private Sub sail_plan_insert_treshold_depths_in_active_sail_plans(treshold_id As Long, _
+                                                                    treshold_name As String, _
+                                                                    ingoing As Double, _
+                                                                    outgoing As Double, _
+                                                                    strive As Double)
+'store the treshold depth in all active sail plans (in case of changes in treshold depths)
+Dim qstr As String
+Dim rst As ADODB.Recordset
 
+'set new name:
+    sp_conn.Execute "UPDATE sail_plans SET treshold_name = '" & treshold_name & "' WHERE treshold_id = " & treshold_id & ";"
+
+'open recordset
+    Set rst = ado_db.ADO_RST
+    qstr = "SELECT * FROM sail_plans WHERE treshold_id = " & treshold_id & ";"
+    rst.Open qstr
+'loop tresholds
+    Do Until rst.EOF
+        If rst!route_ingoing Then
+            rst!treshold_depth = ingoing
+        Else
+            rst!treshold_depth = outgoing
+        End If
+        rst.MoveNext
+    Loop
+
+'close and null rst
+    rst.Close
+    Set rst = Nothing
+
+End Sub
 Public Sub treshold_form_select_treshold_in_lb(n As String)
 'sub to select the treshold with name n in the tresholds listbox
 Dim i As Long
@@ -3257,7 +3446,7 @@ Dim fld_name As String
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
-Dim d As Double
+Dim D As Double
 
 If sp_conn Is Nothing Then
     Call ado_db.connect_sp_ADO
@@ -3397,7 +3586,11 @@ Dim dt As Date
 Dim jd0 As Double
 Dim jd1 As Double
 Dim ret As Long
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim wb As Workbook
 Dim deviations As Collection
 
@@ -3435,8 +3628,8 @@ Dim deviations As Collection
 'loop all tresholds and gather tidal data around local_eta
 Do Until rst.EOF
     'construct julian dates:
-    jd0 = Sqlite3.ToJulianDay(rst!tidal_window_start)
-    jd1 = Sqlite3.ToJulianDay(rst!tidal_window_end)
+    jd0 = SQLite3.ToJulianDay(rst!tidal_window_start)
+    jd1 = SQLite3.ToJulianDay(rst!tidal_window_end)
     
     'construct query
     qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
@@ -3445,16 +3638,16 @@ Do Until rst.EOF
         & jd1 & "';"
     
     'execute query
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-    ret = Sqlite3.SQLite3Step(handl)
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+    ret = SQLite3.SQLite3Step(handl)
     
     If ret = SQLITE_ROW Then
         'check if the first line of data from the database is not more than 15
         'minutes from the start of the eval period. If so, the data has run out.
-        If Abs(DateDiff("n", Sqlite3.FromJulianDay(jd0), Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0)))) > 15 Then
+        If Abs(DateDiff("n", SQLite3.FromJulianDay(jd0), SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0)))) > 15 Then
             'part of the eval_period has no data
             MsgBox "Geen getijdedata voor (een deel van) deze drempel"
-            Sqlite3.SQLite3Finalize handl
+            SQLite3.SQLite3Finalize handl
             GoTo next_treshold
         End If
         'add graph
@@ -3465,7 +3658,7 @@ Do Until rst.EOF
                                 dev_id:=rst!deviation_id, _
                                 n:=rst!treshold_index)
         'end sqlite handl
-        Sqlite3.SQLite3Finalize handl
+        SQLite3.SQLite3Finalize handl
     End If
 next_treshold:
     rst.MoveNext
@@ -3476,7 +3669,7 @@ wb.Sheets(1).PageSetup.CenterHeader = "Waterstanden in cm per drempel voor " & r
     & "Let op: afwijkingen in de waterstand zijn in de waardes verwerkt."
 
 Call format_tidal_table_sheet(wb)
-wb.Sheets(1).ExportAsFixedFormat Type:=xlTypePDF, Filename:= _
+wb.Sheets(1).ExportAsFixedFormat Type:=xlTypePDF, fileName:= _
     Environ("temp") & "\" & wb.Name & ".pdf", Quality:=xlQualityStandard, _
     IncludeDocProperties:=True, IgnorePrintAreas:=False, OpenAfterPublish:= _
     True
@@ -3493,12 +3686,21 @@ If connect_here Then
 End If
 
 End Sub
+#If Win64 Then
+Private Sub add_tidal_table_to_wb(ByRef wb As Workbook, _
+                            treshold As String, _
+                            handl As LongPtr, _
+                            ByRef devs As Collection, _
+                            dev_id As Long, _
+                            n As Long)
+#Else
 Private Sub add_tidal_table_to_wb(ByRef wb As Workbook, _
                             treshold As String, _
                             handl As Long, _
                             ByRef devs As Collection, _
                             dev_id As Long, _
                             n As Long)
+#End If
 'add a tidal table to the workbook
 Dim sh As Worksheet
 Dim ret As Long
@@ -3515,13 +3717,13 @@ Set sh = wb.Sheets(1)
 'write values to sheet
     ret = SQLITE_ROW 'set to row; already checked
     Do While ret = SQLITE_ROW
-        dt = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
+        dt = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
         sh.Cells(rw, clm) = DST_GMT.ConvertToLT(dt)
-        rise = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ","))
+        rise = CDbl(Replace(SQLite3.SQLite3ColumnText(handl, 1), ".", ","))
         dev = deviation_get_interpolated_deviation(devs, dev_id, dt)
         sh.Cells(rw, clm + 1) = Round((rise + dev) * 10, 0)
         rw = rw + 1
-        ret = Sqlite3.SQLite3Step(handl)
+        ret = SQLite3.SQLite3Step(handl)
     Loop
     sh.Range(sh.Cells(2, clm), sh.Cells(rw, clm)).Cells.NumberFormat = "d/m hh:mm"
     sh.Cells(2, clm) = treshold
@@ -3569,7 +3771,11 @@ Dim dt As Date
 Dim jd0 As Double
 Dim jd1 As Double
 Dim ret As Long
+#If Win64 Then
+Dim handl As LongPtr
+#Else
 Dim handl As Long
+#End If
 Dim wb As Workbook
 
 'first check if there is an sqlite database loaded in memory:
@@ -3605,8 +3811,8 @@ Do Until rst.EOF
     dt = rst!local_eta
     
     'construct julian dates:
-    jd0 = Sqlite3.ToJulianDay(dt + TimeSerial(0, -30, 0))
-    jd1 = Sqlite3.ToJulianDay(dt + TimeSerial(1, 0, 0))
+    jd0 = SQLite3.ToJulianDay(dt + TimeSerial(0, -30, 0))
+    jd1 = SQLite3.ToJulianDay(dt + TimeSerial(1, 0, 0))
     
     'construct query
     qstr = "SELECT * FROM " & rst!tidal_data_point & " WHERE DateTime > '" _
@@ -3615,22 +3821,22 @@ Do Until rst.EOF
         & jd1 & "';"
     
     'execute query
-    Sqlite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
-    ret = Sqlite3.SQLite3Step(handl)
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr, handl
+    ret = SQLite3.SQLite3Step(handl)
     
     If ret = SQLITE_ROW Then
         'check if the first line of data from the database is not more than 15
         'minutes from the start of the eval period. If so, the data has run out.
-        If Abs(DateDiff("n", Sqlite3.FromJulianDay(jd0), Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0)))) > 15 Then
+        If Abs(DateDiff("n", SQLite3.FromJulianDay(jd0), SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0)))) > 15 Then
             'part of the eval_period has no data
             MsgBox "Geen getijdedata voor (een deel van) deze drempel"
-            Sqlite3.SQLite3Finalize handl
+            SQLite3.SQLite3Finalize handl
             GoTo next_treshold
         End If
         'add graph
         Call add_tidal_graph_to_wb(wb, rst!treshold_name, handl, rst!treshold_index)
         'end sqlite handl
-        Sqlite3.SQLite3Finalize handl
+        SQLite3.SQLite3Finalize handl
     End If
 next_treshold:
     rst.MoveNext
@@ -3681,8 +3887,11 @@ Application.ScreenUpdating = True
 
 End Sub
 
-
+#If Win64 Then
+Private Sub add_tidal_graph_to_wb(ByRef wb As Workbook, treshold As String, handl As LongPtr, n As Long)
+#Else
 Private Sub add_tidal_graph_to_wb(ByRef wb As Workbook, treshold As String, handl As Long, n As Long)
+#End If
 'add a tidal graph to the workbook
 Dim sh As Worksheet
 Dim shp As Shape
@@ -3699,12 +3908,12 @@ Set sh = wb.Sheets(1)
     last_clm = 1
     min_val = 1000
     Do While ret = SQLITE_ROW
-        sh.Cells(n * 15 + 1, last_clm) = Sqlite3.FromJulianDay(Sqlite3.SQLite3ColumnText(handl, 0))
-        sh.Cells(n * 15 + 2, last_clm) = CDbl(Replace(Sqlite3.SQLite3ColumnText(handl, 1), ".", ",")) * 10
+        sh.Cells(n * 15 + 1, last_clm) = SQLite3.FromJulianDay(SQLite3.SQLite3ColumnText(handl, 0))
+        sh.Cells(n * 15 + 2, last_clm) = CDbl(Replace(SQLite3.SQLite3ColumnText(handl, 1), ".", ",")) * 10
         If sh.Cells(n * 15 + 2, last_clm) < min_val Then min_val = sh.Cells(n * 15 + 2, last_clm)
         If sh.Cells(n * 15 + 2, last_clm) > max_val Then max_val = sh.Cells(n * 15 + 2, last_clm)
         last_clm = last_clm + 1
-        ret = Sqlite3.SQLite3Step(handl)
+        ret = SQLite3.SQLite3Step(handl)
     Loop
     last_clm = last_clm - 1
     sh.Rows(n * 15 + 1).Cells.NumberFormat = "d/m hh:mm"

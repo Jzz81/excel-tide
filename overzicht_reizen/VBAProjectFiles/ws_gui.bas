@@ -2,31 +2,109 @@ Attribute VB_Name = "ws_gui"
 Option Explicit
 Option Base 0
 Option Private Module
+Public Sub right_mouse_find_max()
+'find the max draught for this sail plan on this tide
+Dim w(0 To 1) As Date
+Dim id As Long
+Dim connect_here As Boolean
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim Succes As Boolean
+Dim dr As Double
+Dim max_dr As Double
+Dim incr As Double
+Dim impossible_draught As Double
+Dim cnt As Long
 
-Sub jzz()
-'to export a range to word
-'(for report making)
+'first check if there is an sqlite database loaded in memory:
+    If sql_db.DB_HANDLE = 0 Then
+        MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
+        'make sure to release the db lock
+        Call ado_db.disconnect_sp_ADO
+        'end execution completely
+        End
+    End If
 
-Dim wdApp As Word.Application
-Dim doc As Word.Document
+'check if a sail plan has been selected
+    If Not IsNumeric(Blad1.Cells(Selection.Row, 1)) Then GoTo endsub
+    If Blad1.Cells(Selection.Row, 1) = vbNullString Then GoTo endsub
 
-Dim sSheetName As String
-Dim oRangeToCopy As Range
-Dim oCht As Chart
+'connect to db and setup recordset
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
 
-sSheetName = "overzicht reizen" ' worksheet to work on
-Set oRangeToCopy = Range("$G$4:$S$33") ' range to be copied
+'get id and construct query
+    id = ActiveSheet.Cells(Selection(1, 1).Row, 1)
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
 
-Set wdApp = New Word.Application
-wdApp.Visible = True
-Set doc = wdApp.Documents.Add
+'open query
+    rst.Open qstr
 
-oRangeToCopy.CopyPicture xlScreen, xlPicture 'xlbitmap
+'store values
+    w(0) = rst!tidal_window_start
+    w(1) = rst!tidal_window_end
+    dr = rst!ship_draught
+cnt = 0
+incr = 25.6
 
-wdApp.Selection.Paste
+'feedbackform
+    Load FeedbackForm
+    FeedbackForm.Caption = "Maximum Diepgang"
+    FeedbackForm.FeedbackLBL = "max: " & dr
+    FeedbackForm.ProgressLBL = vbNullString
+    FeedbackForm.Show vbModeless
 
-Set doc = Nothing
-Set wdApp = Nothing
+Do Until incr < 0.1
+    Succes = True
+    Do Until Succes = False
+        'store max value
+            max_dr = dr
+        'check if calc is nessesary
+            If dr + incr = impossible_draught Then
+                Exit Do
+            End If
+        cnt = cnt + 1
+        'feedback
+            FeedbackForm.FeedbackLBL = "max: " & Round(max_dr, 1)
+            FeedbackForm.ProgressLBL = "test: " & Round(dr + incr, 1) & " (stap " & cnt & ")"
+            DoEvents
+        'set next draught
+            sp_conn.Execute "UPDATE sail_plans SET ship_draught = '" & dr + incr & "' WHERE id = '" & id & "';"
+        'update ukc's
+            proj.sail_plan_db_set_ship_draught_and_ukc id:=id, draught:=dr + incr
+        'test
+            Call proj.sail_plan_calculate_raw_windows(id)
+            Call proj.sail_plan_calculate_tidal_window(id, Succes)
+        'check
+            If Not (rst!tidal_window_start >= w(0) And rst!tidal_window_end <= w(1)) Then
+                Succes = False
+            End If
+        If Succes Then
+            dr = dr + incr
+        Else
+            impossible_draught = dr + incr
+        End If
+    Loop
+    incr = incr / 2
+Loop
+
+'set max_draught
+ActiveSheet.Cells(Selection(1, 1).Row, 5) = max_dr
+display_sail_plan
+
+Unload FeedbackForm
+
+endsub:
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then
+    Call ado_db.disconnect_arch_ADO
+End If
 
 End Sub
 
@@ -201,6 +279,7 @@ Dim qstr As String
 Application.ScreenUpdating = False
 
 Call clean_sail_plan_list
+Call clean_sheet
 
 If sp_conn Is Nothing Then
     Call ado_db.connect_sp_ADO
@@ -215,14 +294,14 @@ rst.Open qstr
 Drawing = True
 
 Do Until rst.EOF
-    Call ws_gui.add_sail_plan(id:=rst!id, _
-                                naam:=rst!ship_naam, _
-                                reis:=rst!route_naam, _
-                                loa:=rst!ship_loa, _
-                                diepgang:=Round(rst!ship_draught, 2), _
-                                eta:=DST_GMT.ConvertToLT(rst!local_eta), _
-                                Shift:=rst!route_shift, _
-                                ingoing:=rst!route_ingoing)
+    add_sail_plan id:=rst!id, _
+                        naam:=rst!ship_naam, _
+                        reis:=rst!route_naam, _
+                        loa:=rst!ship_loa, _
+                        diepgang:=Round(rst!ship_draught, 2), _
+                        eta:=DST_GMT.ConvertToLT(rst!local_eta), _
+                        Shift:=rst!route_shift, _
+                        ingoing:=rst!route_ingoing
     rst.MoveNext
 Loop
 
@@ -239,7 +318,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 End Sub
 
-Public Sub add_sail_plan(id As Long, _
+Private Sub add_sail_plan(id As Long, _
                             naam As String, _
                             reis As String, _
                             loa As Double, _
@@ -262,12 +341,8 @@ End If
 
 sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Insert Shift:=xlDown
 
-sh.Cells(rw, 1) = id
-sh.Cells(rw, 2) = naam
-sh.Cells(rw, 3) = reis
-sh.Cells(rw, 4) = loa
-sh.Cells(rw, 5) = diepgang
-sh.Cells(rw, 6) = eta
+sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)) = _
+    Array(id, naam, reis, loa, diepgang, eta)
 
 Set sh = Nothing
 
@@ -276,27 +351,41 @@ Private Sub clean_sail_plan_list()
 'empty the sail plan overview list
 Dim rw As Long
 Dim sh As Worksheet
+Dim cnt As Long
 
 Set sh = ThisWorkbook.Sheets(1)
 
 rw = sh.Range("opvaart_kop").Row + 2
-
-Do Until rw = sh.Range("afvaart_kop").Row - 1
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
-Loop
+'count rows to delete
+    cnt = 0
+    Do Until rw + cnt = sh.Range("afvaart_kop").Row - 1
+        cnt = cnt + 1
+    Loop
+'delete all rows at once (quicker)
+    If cnt > 0 Then
+        sh.Range(sh.Cells(rw, 1), sh.Cells(rw + cnt - 1, 6)).Delete Shift:=xlUp
+    End If
 
 rw = sh.Range("afvaart_kop").Row + 2
-
-Do Until rw = sh.Range("verhaal_kop").Row - 1
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
-Loop
-
+'count
+    cnt = 0
+    Do Until rw + cnt = sh.Range("verhaal_kop").Row - 1
+        cnt = cnt + 1
+    Loop
+'delete
+    If cnt > 0 Then
+        sh.Range(sh.Cells(rw, 1), sh.Cells(rw + cnt - 1, 6)).Delete Shift:=xlUp
+    End If
 rw = sh.Range("verhaal_kop").Row + 2
-
-Do Until sh.Cells(rw, 1) = vbNullString
-    sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Delete Shift:=xlUp
-Loop
-
+'count
+    cnt = 0
+    Do Until sh.Cells(rw + cnt, 1) = vbNullString
+        cnt = cnt + 1
+    Loop
+'delete
+    If cnt > 0 Then
+        sh.Range(sh.Cells(rw, 1), sh.Cells(rw + cnt, 6)).Delete Shift:=xlUp
+    End If
 Set sh = Nothing
 
 End Sub
@@ -352,77 +441,61 @@ Next rw
 Set sh = Nothing
 
 End Sub
-Public Sub deviation_change()
-'loop all deviation ranges and change them in the database
-Dim i As Long
-Dim r As Range
-Dim sh As Worksheet
-Dim connect_here As Boolean
 
-If sp_conn Is Nothing Then
-    Call ado_db.connect_sp_ADO
-    connect_here = True
-End If
+'Public Sub deviation_change()
+''loop all deviation ranges and change them in the database
+'Dim i As Long
+'Dim r As Range
+'Dim sh As Worksheet
+'Dim connect_here As Boolean
+'
+'If sp_conn Is Nothing Then
+'    Call ado_db.connect_sp_ADO
+'    connect_here = True
+'End If
+'
+'Call clean_sheet
+'
+'Set sh = ActiveSheet
+'
+'On Error Resume Next
+'For i = 1 To 9
+'    Set r = sh.Range("dev_" & i)
+'    If Err.Number <> 0 Then
+'        Err.Clear
+'    Else
+'        On Error GoTo 0
+'        'change the deviation in the sail plans
+'        sp_conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & ";"
+'        On Error Resume Next
+'    End If
+'    Set r = Nothing
+'Next i
+'
+'On Error GoTo 0
+'
+''clear all raw windows and tidal windows (recalc is nessesary)
+'sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL;"
+'sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL;"
+'sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL;"
+'
+'Set sh = Nothing
+'
+'If connect_here Then Call ado_db.disconnect_sp_ADO
+'
+'End Sub
 
-Call clean_sheet
-
-Set sh = ActiveSheet
-
-On Error Resume Next
-For i = 1 To 9
-    Set r = sh.Range("dev_" & i)
-    If Err.Number <> 0 Then
-        Err.Clear
-    Else
-        On Error GoTo 0
-        'change the deviation in the sail plans
-        sp_conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & ";"
-        On Error Resume Next
-    End If
-    Set r = Nothing
-Next i
-
-On Error GoTo 0
-
-'clear all raw windows and tidal windows (recalc is nessesary)
-sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL;"
-sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL;"
-sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL;"
-
-Set sh = Nothing
-
-If connect_here Then Call ado_db.disconnect_sp_ADO
-
-End Sub
-Public Sub insert_deviations_into_sail_plan(id As Long)
-'will insert the deviations into a sail plan (for new sail plans)
-Dim i As Long
-Dim r As Range
-Dim sh As Worksheet
-Set sh = ActiveSheet
-If sp_conn Is Nothing Then Exit Sub
-On Error Resume Next
-For i = 1 To 9
-    Set r = sh.Range("dev_" & i)
-    If Err.Number <> 0 Then
-        Err.Clear
-    Else
-        On Error GoTo 0
-        'change the deviation in the sail plans
-        sp_conn.Execute "UPDATE sail_plans SET deviation = " & val(r.Value) & " WHERE deviation_id = " & i & " AND id = '" & id & "';"
-        On Error Resume Next
-    End If
-    Set r = Nothing
-Next i
-
-End Sub
 Public Sub display_sail_plan()
 'displays the selected sail plan on the worksheet
 
 Dim sh As Worksheet
 Dim rw As Long
+Dim clm As Long
 Dim r As Range
 Dim connect_here As Boolean
+Dim id As Long
+Dim draught As Double
+Dim rst As ADODB.Recordset
 
 If Drawing Then Exit Sub
 Application.ScreenUpdating = False
@@ -431,10 +504,14 @@ Drawing = True
 Set sh = ActiveSheet
 
 rw = Selection.Cells(1, 1).Row
-
+clm = Selection.Cells(1, 1).Column
 
 'check if a sail_plan is selected
     If Not IsNumeric(sh.Cells(rw, 1)) Or Len(sh.Cells(rw, 1)) = 0 Then GoTo exitsub
+    If Not (clm >= 2 And clm <= 6) Then GoTo exitsub
+
+'get id
+    id = sh.Cells(rw, 1)
 
 'activate draught cell
     sh.Cells(rw, 5).Activate
@@ -454,12 +531,49 @@ rw = Selection.Cells(1, 1).Row
         Call ado_db.connect_sp_ADO
         connect_here = True
     End If
+    Set rst = ado_db.ADO_RST
+    rst.Open "SELECT * FROM sail_plans WHERE id = '" & id & "' " _
+            & "AND treshold_index = 0;"
+    draught = rst!ship_draught
+
+'validate given draught
+    If Not IsNumeric(sh.Cells(rw, 5)) Then
+        sh.Cells(rw, 5) = draught
+    End If
+
+'check draught and update database if nessesary
+If Round(sh.Cells(rw, 5), 2) <> Round(draught, 2) Then
+    draught = val(Replace(sh.Cells(rw, 5).text, ",", "."))
+    'update draught
+        sp_conn.Execute "UPDATE sail_plans SET ship_draught = '" & draught & "' WHERE id = '" & id & "';"
+    'null tidal windows
+        sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL WHERE id = '" & id & "';"
+        sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL WHERE id = '" & id & "';"
+        sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL WHERE id = '" & id & "';"
+    'update ukc's
+        proj.sail_plan_db_set_ship_draught_and_ukc id:=id, draught:=draught
+End If
+
+'always calculate windows, to force validation of deviation values
+'first check if there is an sqlite database loaded in memory:
+    If sql_db.DB_HANDLE = 0 Then
+        MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
+        'make sure to releas the db lock
+        Call ado_db.disconnect_sp_ADO
+        'end execution completely
+        End
+    End If
+    
+    Call proj.sail_plan_calculate_raw_windows(id)
+    Call proj.sail_plan_calculate_tidal_window(id)
 
 Call draw_tidal_windows(rw)
 Call draw_path(rw)
 
 Call write_tidal_data(rw)
 
+rst.Close
+Set rst = Nothing
 'disconnect db
     If connect_here Then Call ado_db.disconnect_sp_ADO
 
@@ -475,7 +589,8 @@ Dim i As Long
 
 rst.MoveFirst
 ss = Split(rst!raw_windows, ";")
-If UBound(ss) > 0 Then
+
+If UBound(ss) > 0 Or rst!raw_windows = vbNullString Then
     sail_plan_has_tidal_restrictions = True
 Else
     ss1 = Split(ss(0), ",")
@@ -498,7 +613,7 @@ Dim ss() As String
 Dim ss1() As String
 Dim i As Long
 Dim ii As Long
-Dim d As Double
+Dim D As Double
 Dim s_dif As Long
 Dim devs As Collection
 Dim dev_string As String
@@ -508,6 +623,7 @@ Dim jd1 As Double
 Dim rw_add As Long
 Dim has_restrictions As Boolean
 Dim dt As Date
+Dim v(0 To 8) As Variant
 
 Set sh = ActiveSheet
 id = sh.Cells(rw, 1)
@@ -548,18 +664,12 @@ With sh
         .Range(.Cells(rw, 10), .Cells(rw, 13)).Interior.Color = 49407
     End If
     rw = rw + 1
-    .Cells(rw, 9) = "drempel"
-    .Cells(rw, 10) = "diepte"
-    .Cells(rw, 11) = "UKC"
-    .Cells(rw, 12) = "afwijking"
-    .Cells(rw, 13) = "Rijs"
-    .Cells(rw, 14) = "lokaal"
-    .Cells(rw, 15) = "globaal"
-    .Cells(rw, 16) = "globaal"
-    .Cells(rw, 17) = "lokaal"
+    .Range(.Cells(rw, 9), .Cells(rw, 17)) = _
+        Array("drempel", "diepte", "UKC", "afwijking", "Rijs", _
+            "lokaal", "globaal", "globaal", "lokaal")
     .Range(.Cells(rw, 9), .Cells(rw, 17)).Borders(xlEdgeBottom).Weight = xlMedium
     
-    jd0 = Sqlite3.ToJulianDay( _
+    jd0 = SQLite3.ToJulianDay( _
         rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 0))
     
     rw = rw + 1
@@ -571,22 +681,28 @@ With sh
                 devs.Add CStr(rst!deviation_id)
             End If
         'store end of timeframe
-            jd1 = Sqlite3.ToJulianDay( _
+            jd1 = SQLite3.ToJulianDay( _
                 rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 0))
         'trehold name
-            .Cells(rw, 9) = rst!treshold_name
+            '.Cells(rw, 9)
+            v(0) = rst!treshold_name
         'depth
-            .Cells(rw, 10) = rst!treshold_depth
+            '.Cells(rw, 10)
+            v(1) = rst!treshold_depth
         'ukc in percentage and value
-            .Cells(rw, 11) = Round(rst!ukc, 1) & " (" & rst!UKC_value & rst!UKC_unit & ")"
+            '.Cells(rw, 11)
+            v(2) = Round(rst!ukc, 1) & " (" & rst!UKC_value & rst!UKC_unit & ")"
         'name of deviation point
-            .Cells(rw, 12) = ado_db.get_table_name_from_id(rst!deviation_id, "deviations")
+            '.Cells(rw, 12)
+            v(3) = ado_db.get_table_name_from_id(rst!deviation_id, "deviations")
         'rise
-            d = (rst!treshold_depth - (rst!ukc + rst!ship_draught))
-            If d < 0 Then
-                .Cells(rw, 13) = Format(-d, "0.0")
+            D = (rst!treshold_depth - (rst!ukc + rst!ship_draught))
+            If D < 0 Then
+                '.Cells(rw, 13)
+                v(4) = Format(-D, "0.0")
             Else
-                .Cells(rw, 13) = "0"
+                '.Cells(rw, 13)
+                v(4) = "0"
             End If
         'window parameters (local and global)
             If Not IsNull(rst!tidal_window_start) And has_restrictions Then
@@ -595,17 +711,23 @@ With sh
                 For i = 0 To UBound(ss)
                     'split for start and end
                     ss1 = Split(ss(i), ",")
-                    'find window that holds the global window
+                    'find local window that holds the global window
                         If CDate(ss1(0)) <= rst!tidal_window_start And _
                                 CDate(ss1(1)) >= rst!tidal_window_end Then
-                            .Cells(rw, 14) = DST_GMT.ConvertToLT(CDate(ss1(0)))
-                            .Cells(rw, 17) = DST_GMT.ConvertToLT(CDate(ss1(1)))
+                            '.Cells(rw, 14)
+                            v(5) = DST_GMT.ConvertToLT(CDate(ss1(0)))
+                            '.Cells(rw, 17)
+                            v(8) = DST_GMT.ConvertToLT(CDate(ss1(1)))
                             Exit For
                         End If
                 Next i
                 'global window
-                    .Cells(rw, 15) = DST_GMT.ConvertToLT(CDate(rst!tidal_window_start))
-                    .Cells(rw, 16) = DST_GMT.ConvertToLT(CDate(rst!tidal_window_end))
+                    '.Cells(rw, 15)
+                    v(6) = DST_GMT.ConvertToLT(CDate(rst!tidal_window_start))
+                    '.Cells(rw, 16)
+                    v(7) = DST_GMT.ConvertToLT(CDate(rst!tidal_window_end))
+        'insert data
+            .Range(.Cells(rw, 9), .Cells(rw, 17)) = v
                 'color start or end of window if applicable
                     On Error Resume Next
                         s_dif = Abs(DateDiff("s", .Cells(rw, 14), .Cells(rw, 15)))
@@ -858,6 +980,8 @@ Dim i As Long
 Dim last_end_of_window As Date
 Dim new_draught As Double
 
+Dim t As Long
+
 Set sh = ActiveSheet
 
 'clean sheet
@@ -875,19 +999,6 @@ id = sh.Cells(rw, 1)
 'select sail plan from db
     qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
     rst.Open qstr
-
-'check draught and update database if nessesary
-If Round(sh.Cells(rw, 5), 2) <> Round(rst!ship_draught, 2) Then
-    new_draught = val(Replace(sh.Cells(rw, 5).text, ",", "."))
-    'update draught
-        sp_conn.Execute "UPDATE sail_plans SET ship_draught = '" & new_draught & "' WHERE id = '" & id & "';"
-    'null tidal windows
-        sp_conn.Execute "UPDATE sail_plans SET raw_windows = NULL WHERE id = '" & id & "';"
-        sp_conn.Execute "UPDATE sail_plans SET tidal_window_start = NULL WHERE id = '" & id & "';"
-        sp_conn.Execute "UPDATE sail_plans SET tidal_window_end = NULL WHERE id = '" & id & "';"
-    'update deviations
-        proj.sail_plan_db_set_ship_draught_and_ukc id:=id, draught:=new_draught
-End If
 
 'construct drawing constants
     If Not IsNull(rst!rta) Then
@@ -912,17 +1023,6 @@ End If
     rst.MoveFirst
     SAIL_PLAN_DAY_LENGTH = (SAIL_PLAN_GRAPH_DRAW_BOTTOM - SAIL_PLAN_GRAPH_DRAW_TOP) / (end_global_frame - start_global_frame)
 
-'always calculate windows, to force validation of deviation values
-    'first check if there is an sqlite database loaded in memory:
-        If sql_db.DB_HANDLE = 0 Then
-            MsgBox "De database is niet ingeladen. Kan geen berekeningen maken", Buttons:=vbCritical
-            'make sure to releas the db lock
-            Call ado_db.disconnect_sp_ADO
-            'end execution completely
-            End
-        End If
-        Call proj.sail_plan_calculate_raw_windows(id)
-        Call proj.sail_plan_calculate_tidal_window(id)
 
 
 'loop tresholds in sail plan
@@ -1035,22 +1135,22 @@ Private Sub DrawWindow(draw_bottom As Double, _
 Dim t As Double
 Dim l As Double
 Dim h As Double
-Dim W As Double
+Dim w As Double
 Dim shp As Shape
 t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
 l = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
 If dark Then
-    W = 5
+    w = 5
     l = l - 1
 Else
-    W = 3
+    w = 3
 End If
 
 If h = 0 Then Exit Sub
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, l, t, W, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, l, t, w, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then

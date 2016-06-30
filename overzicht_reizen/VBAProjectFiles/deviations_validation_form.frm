@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 Option Explicit
 
 Private Sub ok_btn_Click()
@@ -44,6 +45,3 @@ Private Sub print_btn_Click()
 Me.PrintForm
 End Sub
 
-Private Sub UserForm_Click()
-
-End Sub

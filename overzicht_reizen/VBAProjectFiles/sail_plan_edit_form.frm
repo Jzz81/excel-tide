@@ -13,6 +13,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+
 Option Explicit
 
 Public cancelflag As Boolean
@@ -92,6 +93,11 @@ cancelflag = True
 Me.Hide
 End Sub
 
+Private Sub current_tresholds_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.current_tresholds_cb
+End Sub
+
 Private Sub eta_date_tb_Enter()
 Set caller_ctr = Me.eta_date_tb
 Call create_datepicker
@@ -110,15 +116,32 @@ End If
 
 End Sub
 
+Private Sub hw_list_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.hw_list_cb
+End Sub
 
+Private Sub MultiPage1_Change()
 
-Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal y As Single)
+End Sub
+
+Private Sub route_lb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.route_lb
+End Sub
+
+Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
 Call proj.sail_plan_form_route_lb_click
 
 End Sub
 
 Private Sub routes_cb_Change()
 Call proj.sail_plan_form_route_cb_exit
+End Sub
+
+Private Sub routes_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.routes_cb
 End Sub
 
 Private Sub rta_date_tb_Enter()
@@ -169,8 +192,25 @@ If Not input_mask_time(Me.rta_time_tb) Then
 End If
 End Sub
 
+Private Sub rta_tresholds_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.rta_tresholds_cb
+End Sub
+
 Private Sub ship_types_cb_Change()
-Call proj.sail_plan_form_set_speeds_tbs
+Call proj.sail_plan_form_ship_type_cb_change
+End Sub
+
+Private Sub ship_types_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.ship_types_cb
+End Sub
+
+Private Sub ships_cb_Change()
+Me.ships_cb.Value = UCase(Me.ships_cb.Value)
+
+Call proj.sail_plan_form_ship_cb_change
+
 End Sub
 
 Private Sub ships_cb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
@@ -179,47 +219,143 @@ If KeyCode = vbKeyUp Or KeyCode = vbKeyDown Then
 End If
 End Sub
 
+Private Sub ships_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+    UnhookListScroll
+    HookListScroll Me, Me.ships_cb
+End Sub
+
+Private Sub TextBox2_Change()
+TextBox2.text = UCase(TextBox2.text)
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    UnhookListScroll
+End Sub
+
 Private Sub window_after_edit_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 If Not input_mask_time(Me.window_after_edit_tb) Then
     Cancel = True
 End If
+Call check_route_list_tidal_windows
 End Sub
 
 Private Sub window_after_edit_tb_Change()
 Call proj.sail_plan_form_window_edit_after_change
 End Sub
 
-Private Sub window_after_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
-If Not input_mask_time(Me.window_after_tb) Then
-    Cancel = True
-End If
-End Sub
 
 Private Sub window_pre_edit_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 If Not input_mask_time(Me.window_pre_edit_tb) Then
     Cancel = True
 End If
+Call check_route_list_tidal_windows
 End Sub
-
 Private Sub window_pre_edit_tb_Change()
 Call proj.sail_plan_form_window_edit_pre_change
 End Sub
 
-Private Sub window_pre_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
-If Not input_mask_time(Me.window_pre_tb) Then
-    Cancel = True
-End If
+Public Sub check_route_list_tidal_windows()
+'will loop the tidal windows in the route list and check them against
+'the set tidal window in the voyage data. If one (or more) is smaller, display warning.
+Dim w0_min As Date
+Dim w0_max As Date
+Dim w1_min As Date
+Dim w1_max As Date
+
+Dim i As Long
+
+'set very high
+    w1_min = 10000
+    w0_min = 10000
+
+'find min and max values
+    For i = 0 To Me.route_lb.ListCount - 1 Step 2
+        If Me.route_lb.List(i, 4) > w1_max Then w1_max = Me.route_lb.List(i, 4)
+        If Me.route_lb.List(i, 5) > w0_max Then w0_max = Me.route_lb.List(i, 5)
+        
+        If Me.route_lb.List(i, 4) < w1_min Then w1_min = Me.route_lb.List(i, 4)
+        If Me.route_lb.List(i, 5) < w0_min Then w0_min = Me.route_lb.List(i, 5)
+    Next i
+
+'set minimum value in tbs
+    Me.window_pre_tb.text = Format(w0_min, "hh:nn")
+    Me.window_after_tb.text = Format(w1_min, "hh:nn")
+
+'set or reset warning labels
+    If w0_min <> w0_max Then
+        'show warning labels
+            Me.warning_label.Visible = True
+            Me.warning_color_label.Visible = True
+        'set text color to red
+            Me.window_pre_tb.ForeColor = vbRed
+    End If
+    If w1_min <> w1_max Then
+        'show warning labels
+            Me.warning_label.Visible = True
+            Me.warning_color_label.Visible = True
+        'set text color to red
+            Me.window_after_tb.ForeColor = vbRed
+    End If
+    If w0_min = w0_max And w1_min = w1_max Then
+        'hide warning labels
+            Me.warning_label.Visible = False
+            Me.warning_color_label.Visible = False
+        'reset text color to black
+            Me.window_after_tb.ForeColor = vbBlack
+            Me.window_pre_tb.ForeColor = vbBlack
+    End If
+
 End Sub
+
+'routines for 'global' window tbs (pre and after)
+Private Sub window_pre_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
+    If Not input_mask_time(Me.window_pre_tb) Then
+        Cancel = True
+    End If
+    Call insert_windows_into_route_list
+End Sub
+Private Sub window_after_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
+    If Not input_mask_time(Me.window_after_tb) Then
+        Cancel = True
+    End If
+    Call insert_windows_into_route_list
+End Sub
+
+
+
 Private Sub eta_time_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 If Not input_mask_time(Me.eta_time_tb) Then
     Cancel = True
 End If
 End Sub
+Private Sub insert_windows_into_route_list()
+'will insert the tidal windows from the voyage tab into the route list
+Dim w0 As Date
+Dim w1 As Date
+Dim i As Long
 
-Private Sub ships_cb_Exit(ByVal Cancel As MSForms.ReturnBoolean)
-Me.ships_cb.Value = UCase(Me.ships_cb.Value)
+'tidal windows
+    w0 = CDate(Me.window_pre_tb)
+    w1 = CDate(Me.window_after_tb)
 
-Call proj.sail_plan_form_ship_cb_exit
+'insert these windows into route listbox
+    For i = 0 To Me.route_lb.ListCount - 1 Step 2
+        Me.route_lb.List(i, 4) = Format(w1, "hh:nn")
+        Me.route_lb.List(i, 5) = Format(w0, "hh:nn")
+    Next i
+
+'set text color to black
+    Me.window_after_tb.ForeColor = vbBlack
+    Me.window_pre_tb.ForeColor = vbBlack
+
+'hide warnings
+    Me.warning_label.Visible = False
+    Me.warning_color_label.Visible = False
+
+'unset edit mode in route listbox
+    Me.route_lb.ListIndex = -1
+    Call proj.sail_plan_form_unset_sail_plan_edit_mode
+
 End Sub
 
 Private Sub speed_cmb_Change()
@@ -236,9 +372,11 @@ End Sub
 
 Private Sub UserForm_Initialize()
 Me.datepicker_frame.Visible = False
+Me.warning_label.Visible = False
+Me.warning_color_label.Visible = False
 
-Me.ship_types_cb.ColumnCount = 2
-Me.ship_types_cb.ColumnWidths = ";0"
+Me.ship_types_cb.ColumnCount = 3
+Me.ship_types_cb.ColumnWidths = ";0;0"
 
 Me.routes_cb.ColumnCount = 2
 Me.routes_cb.ColumnWidths = ";0"

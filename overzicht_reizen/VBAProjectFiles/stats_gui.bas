@@ -9,7 +9,7 @@ Dim qstr As String
 Dim connect_here As Boolean
 Dim first_year As Long
 Dim last_year As Long
-Dim y As Long
+Dim Y As Long
 Dim id_c As Collection
 Dim c As Collection
 Dim mode As Long
@@ -51,7 +51,7 @@ Dim s As String
     With Blad5
         clm = 1
         'loop the years
-        For y = last_year To first_year Step -1
+        For Y = last_year To first_year Step -1
             'make up a page for this year
                 rw = 1
                 With .Range(.Cells(rw, clm), .Cells(rw, clm + 12))
@@ -60,18 +60,18 @@ Dim s As String
                     .Borders(xlEdgeBottom).Weight = 2.5
                 End With
             'construct header
-                s = CStr(y)
+                s = CStr(Y)
                 qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
-                    & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
-                    & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+                    & "AND local_eta > #" & DateSerial(Y, 1, 1) & "# " _
+                    & "AND local_eta < #" & DateSerial(Y + 1, 1, 1) & "# " _
                     & "AND sail_plan_succes = TRUE;"
                 s = s & " (totaal van geslaagde vaarplannen: "
                 rst.Open qstr
                 s = s & CStr(rst.RecordCount)
                 rst.Close
                 qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
-                    & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
-                    & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+                    & "AND local_eta > #" & DateSerial(Y, 1, 1) & "# " _
+                    & "AND local_eta < #" & DateSerial(Y + 1, 1, 1) & "# " _
                     & "AND sail_plan_succes = FALSE;"
                 s = s & ", totaal van mislukte vaarplannen: "
                 rst.Open qstr
@@ -90,7 +90,7 @@ Dim s As String
                                 mode:=mode
                 rw = rw + 1
                 'collect id's for this year per mode
-                    Set id_c = get_id_collection_for_year(y, mode:=mode)
+                    Set id_c = get_id_collection_for_year(Y, mode:=mode)
                 'check if there are sail plans
                     If id_c.Count = 0 Then
                         .Cells(rw, clm + 1) = "geen reizen"
@@ -189,13 +189,13 @@ NextMode:
             
             'write all sail plans to sheet
                 write_sail_plan_summary_to_sheet sh:=Blad5, _
-                                            y:=y, _
+                                            Y:=Y, _
                                             rw:=rw, _
                                             clm:=clm
             
             Set id_c = Nothing
             clm = clm + 13
-        Next y
+        Next Y
     End With
 
 endsub:
@@ -227,7 +227,7 @@ With sh
 End With
 End Sub
 Private Sub write_sail_plan_summary_to_sheet(ByRef sh As Worksheet, _
-                                    y As Long, _
+                                    Y As Long, _
                                     rw As Long, _
                                     clm As Long)
 'write summary of all sail plans to sheet
@@ -239,8 +239,8 @@ Dim i As Long
 Set rst = ado_db.ADO_RST(arch_conn)
 'query db for failed
     qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
-        & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
-        & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+        & "AND local_eta > #" & DateSerial(Y, 1, 1) & "# " _
+        & "AND local_eta < #" & DateSerial(Y + 1, 1, 1) & "# " _
         & "AND sail_plan_succes = FALSE;"
     rst.Open qstr
 'write header
@@ -261,8 +261,8 @@ Set rst = ado_db.ADO_RST(arch_conn)
 
 'query db for succes
     qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 " _
-        & "AND local_eta > #" & DateSerial(y, 1, 1) & "# " _
-        & "AND local_eta < #" & DateSerial(y + 1, 1, 1) & "# " _
+        & "AND local_eta > #" & DateSerial(Y, 1, 1) & "# " _
+        & "AND local_eta < #" & DateSerial(Y + 1, 1, 1) & "# " _
         & "AND sail_plan_succes = TRUE;"
     rst.Open qstr
 'write header
@@ -562,7 +562,7 @@ End With
 Set rst = Nothing
 
 End Function
-Private Function get_id_collection_for_year(y As Long, mode As Long) As Collection
+Private Function get_id_collection_for_year(Y As Long, mode As Long) As Collection
 'collects all id's of the given year
 Dim qstr As String
 Dim rst As ADODB.Recordset
@@ -570,20 +570,20 @@ Dim rst As ADODB.Recordset
 Set rst = ado_db.ADO_RST(arch_conn)
 If mode = 1 Then
     qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 AND " _
-        & "local_eta > #" & DateSerial(y, 1, 1) & "# AND " _
-        & "local_eta < #" & DateSerial(y + 1, 1, 1) & "# AND " _
+        & "local_eta > #" & DateSerial(Y, 1, 1) & "# AND " _
+        & "local_eta < #" & DateSerial(Y + 1, 1, 1) & "# AND " _
         & "route_ingoing = TRUE AND " _
         & "route_shift = FALSE;"
 ElseIf mode = 2 Then
     qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 AND " _
-        & "local_eta > #" & DateSerial(y, 1, 1) & "# AND " _
-        & "local_eta < #" & DateSerial(y + 1, 1, 1) & "# AND " _
+        & "local_eta > #" & DateSerial(Y, 1, 1) & "# AND " _
+        & "local_eta < #" & DateSerial(Y + 1, 1, 1) & "# AND " _
         & "route_ingoing = FALSE AND " _
         & "route_shift = FALSE;"
 ElseIf mode = 3 Then
     qstr = "SELECT * FROM sail_plans WHERE treshold_index = 0 AND " _
-        & "local_eta > #" & DateSerial(y, 1, 1) & "# AND " _
-        & "local_eta < #" & DateSerial(y + 1, 1, 1) & "# AND " _
+        & "local_eta > #" & DateSerial(Y, 1, 1) & "# AND " _
+        & "local_eta < #" & DateSerial(Y + 1, 1, 1) & "# AND " _
         & "route_shift = TRUE;"
 End If
 
