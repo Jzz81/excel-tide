@@ -114,7 +114,7 @@ For i = 0 To UBound(tables)
     With shp.Chart
         .HasLegend = True
         .HasTitle = True
-        .ChartTitle.text = "Verwachtte afwijkingen voor " & tables(i) & " (cm)"
+        .ChartTitle.Text = "Verwachtte afwijkingen voor " & tables(i) & " (cm)"
         For Each ser In .SeriesCollection
             ser.Delete
         Next ser
@@ -166,7 +166,7 @@ For i = 0 To UBound(tables)
         With .Axes(xlValue, xlPrimary)
             .TickLabels.font.Color = vbRed
             .HasTitle = True
-            .AxisTitle.text = "afwijking (cm)"
+            .AxisTitle.Text = "afwijking (cm)"
         End With
         
         

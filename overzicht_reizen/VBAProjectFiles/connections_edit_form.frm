@@ -36,16 +36,6 @@ Private Sub conn_lb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, B
     HookListScroll Me, Me.conn_lb
 End Sub
 
-Private Sub tr1_cmb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.tr1_cmb
-End Sub
-
-Private Sub tr2_cmb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.tr2_cmb
-End Sub
-
 Private Sub UserForm_Initialize()
 Me.conn_lb.ColumnCount = 3
 Me.conn_lb.ColumnWidths = "0;100;20"

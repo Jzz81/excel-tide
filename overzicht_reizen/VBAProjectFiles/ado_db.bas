@@ -1,5 +1,7 @@
 Attribute VB_Name = "ado_db"
 Option Explicit
+Option Base 0
+Option Compare Text
 Option Private Module
 
 Public sp_conn As ADODB.Connection
@@ -165,7 +167,191 @@ With ADO_RST
     .CursorType = adOpenKeyset
 End With
 End Function
-Public Function check_table_name_exists(ByVal n As String, ByVal t As String) As Boolean
+Public Sub validate_sail_plan_database()
+'will validate the database (run on startup)
+'find empty records in route_naam
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim id As Long
+
+On Error GoTo Errorhandler
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+qstr = "SELECT * FROM sail_plans WHERE route_naam Is Null " _
+    & "OR ship_naam Is Null " _
+    & "OR ship_loa Is Null " _
+    & "OR ship_boa Is Null " _
+    & "OR ship_draught Is Null " _
+    & "OR local_eta Is Null " _
+    & "OR treshold_name Is Null;"
+
+rst.Open qstr
+
+BackLoop:
+If rst.RecordCount > 0 Then
+    'something wrong
+    Do Until rst.EOF
+        If repair_sail_plan(rst!id) Then
+            MsgBox "Vaarplan voor: " & rst!ship_naam & " met route: " & rst!route_naam _
+                    & " was beschadigd en is gerepareerd." & Chr(10) & Chr(10) _
+                    & "Let op! Kijk dit vaarplan goed na op fouten (eta, diepgang, etc.)", vbExclamation
+        Else
+            MsgBox "Er is een vaarplan aangetroffen wat ernstig beschadigd was " _
+                    & "en niet gerepareerd kon worden. Dit vaarplan wordt verwijderd."
+                id = rst!id
+                rst.Close
+                sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+                rst.Open qstr
+                GoTo BackLoop
+        End If
+        rst.MoveNext
+    Loop
+End If
+
+rst.Close
+
+Errorhandler:
+
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Sub
+Public Function repair_sail_plan(sail_plan_id As Long) As Boolean
+'will try to repair the given sail plan
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+Dim route_naam As String
+Dim ship_naam As String
+Dim loa As Double
+Dim boa As Double
+
+Dim i As Long
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+
+'collect data (if there is any)
+Do Until rst.EOF
+    If Not IsNull(rst!route_naam) And _
+            Not Trim(rst!route_naam) = vbNullString Then
+        route_naam = rst!route_naam
+    End If
+    If Not IsNull(rst!ship_naam) And _
+            Not Trim(rst!ship_naam) = vbNullString Then
+        ship_naam = rst!ship_naam
+    End If
+    If Not IsNull(rst!ship_loa) And _
+            Not rst!ship_loa = 0 Then
+        loa = rst!ship_loa
+    End If
+    If Not IsNull(rst!ship_boa) And _
+            Not rst!ship_boa = 0 Then
+        boa = rst!ship_boa
+    End If
+    If IsNull(rst!treshold_name) Or _
+            rst!treshold_name = vbNullString Then
+        'see if the id is present
+        If IsNull(rst!treshold_id) Or _
+                rst!treshold_id = 0 Or _
+                rst!treshold_id = vbNullString Then
+            'id is not available. Critical error.
+            repair_sail_plan = False
+            Exit Function
+        Else
+            rst!treshold_name = ado_db.get_table_name_from_id(rst!treshold_id, "tresholds")
+        End If
+    End If
+    rst.MoveNext
+Loop
+rst.Close
+
+'if one of these parameters is empty, fix is not possible
+If route_naam = vbNullString Or _
+        ship_naam = vbNullString _
+        Then
+    repair_sail_plan = False
+    Exit Function
+End If
+
+'fill route_naam
+If route_naam <> vbNullString Then
+    sp_conn.Execute "UPDATE sail_plans SET route_naam = '" & route_naam & "' WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+End If
+'fill ship_naam
+If ship_naam <> vbNullString Then
+    sp_conn.Execute "UPDATE sail_plans SET ship_naam = '" & ship_naam & "' WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+End If
+
+'fill loa
+If loa > 0 Then
+    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & loa & " WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+Else
+    'bogus value (1)
+    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & 1 & " WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+End If
+'fill boa
+If boa > 0 Then
+    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & boa & " WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+Else
+    'bogus value (1)
+    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & 1 & " WHERE id = '" & sail_plan_id & "';"
+    repair_sail_plan = True
+End If
+    
+'query for empty draught
+qstr = "SELECT * FROM sail_plans WHERE ship_draught Is Null AND id = '" & sail_plan_id & "';"
+rst.Open qstr
+If rst.RecordCount > 0 Then
+    repair_sail_plan = True
+    rst.Close
+    'bogus value (1)
+    sp_conn.Execute "UPDATE sail_plans SET ship_draught = " & 1 & " WHERE id = " & sail_plan_id & ";"
+Else
+    rst.Close
+End If
+
+'query for empty eta
+qstr = "SELECT * FROM sail_plans WHERE local_eta Is Null AND id = '" & sail_plan_id & "';"
+rst.Open qstr
+If rst.RecordCount > 0 Then
+    repair_sail_plan = True
+    rst.Close
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+    rst.Open qstr
+    'fill in bogus (but viable) eta values
+    Do Until rst.EOF
+        rst!local_eta = DateSerial(Year(Now) - 1, 1, 1) + TimeSerial(0, 10 * i, 0)
+        i = i + 1
+        rst.MoveNext
+    Loop
+End If
+rst.Close
+
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function check_table_name_exists(ByVal n As String, ByVal T As String) As Boolean
 'check if the name n exists in the database return true if so
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -176,7 +362,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & t & " WHERE naam = '" & n & "';"
+qstr = "SELECT * FROM " & T & " WHERE naam = '" & n & "';"
 rst.Open qstr
 
 If rst.RecordCount > 0 Then check_table_name_exists = True
@@ -231,7 +417,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function get_table_id_from_name(ByVal n As String, ByVal t As String) As Long
+Public Function get_table_id_from_name(ByVal n As String, ByVal T As String) As Long
 'get id from table t based on the name n
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -242,7 +428,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & t & " WHERE naam = '" & n & "';"
+qstr = "SELECT * FROM " & T & " WHERE naam = '" & n & "';"
 rst.Open qstr
 
 get_table_id_from_name = rst!id
@@ -253,7 +439,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function get_table_name_from_id(ByVal id As Long, ByVal t As String) As String
+Public Function get_table_name_from_id(ByVal id As Long, ByVal T As String) As String
 'get tidal_point_name from the database based on the id
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -264,7 +450,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & t & " WHERE id = " & id & ";"
+qstr = "SELECT * FROM " & T & " WHERE id = " & id & ";"
 rst.Open qstr
 
 get_table_name_from_id = rst!naam
@@ -314,6 +500,237 @@ get_treshold_logging = rst!log_in_statistics
 
 rst.Close
 Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_treshold_draught_zone(treshold_name As String) As Long
+'check draught zone for the treshold with this name
+'1 = sea, 2 = river
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM tresholds WHERE naam = '" & treshold_name & "';"
+rst.Open qstr
+    
+get_treshold_draught_zone = rst!draught_zone
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_treshold_strive_depth(treshold_id As Long) As Double
+'retreive the strive depth for the treshold
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM tresholds WHERE id = " & treshold_id & ";"
+rst.Open qstr
+    
+get_treshold_strive_depth = rst!depth_strive
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_sail_plan_double_draught(sail_plan_id As Long) As Boolean
+'check double draught setting for this sail plan
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim d As Double
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+    
+d = rst!ship_draught
+Do Until rst.EOF
+    If rst!ship_draught <> d Then
+        get_sail_plan_double_draught = True
+        Exit Do
+    End If
+    rst.MoveNext
+Loop
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_sail_plan_draughts(sail_plan_id As Long) As String
+'get draughts for this sail plan
+'d_sea;d_river
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim d_river As Double
+Dim d_sea As Double
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+    
+'generate seperated string
+    Do Until rst.EOF
+        If ado_db.get_treshold_draught_zone(rst!treshold_name) = 1 Then
+            d_sea = rst!ship_draught
+        Else
+            d_river = rst!ship_draught
+        End If
+        If d_sea <> 0 And d_river <> 0 Then Exit Do
+        rst.MoveNext
+    Loop
+    
+'are both set? if not, equal both
+    If d_sea = 0 Then d_sea = d_river
+    If d_river = 0 Then d_river = d_sea
+'check double draugt
+    If d_sea <> d_river Then
+        get_sail_plan_draughts = Round(d_sea, 1) & ";" & Round(d_river, 1)
+    Else
+        get_sail_plan_draughts = CStr(Round(d_sea, 1))
+    End If
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_sail_plan_rta(sail_plan_id As Long, _
+                                    ByRef rta As Date, _
+                                    ByRef rta_tr As String) As Boolean
+'get rta for this sail plan
+'d_sea;d_river
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+    
+'find rta treshold
+    Do Until rst.EOF
+        If rst!rta_treshold = True Then
+            rta_tr = rst!treshold_name
+            rta = rst!rta
+            get_sail_plan_rta = True
+            Exit Do
+        End If
+        rst.MoveNext
+    Loop
+    
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function sail_plan_id_exists(sail_plan_id As Long) As Boolean
+'checks if the sail plan id exists in the database
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+
+If rst.RecordCount > 0 Then sail_plan_id_exists = True
+
+rst.Close
+Set rst = Nothing
+
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+Public Function get_sail_plan_speed_string(sail_plan_id As Long) As String
+'will generate a string with the speed names and speed values of this sp_id
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+Dim ss() As String
+Dim s As String
+Dim i As Long
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+qstr = "SELECT TOP 1 * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+rst.Open qstr
+
+ss = Split(rst!ship_speeds, ";")
+
+rst.Close
+Set rst = Nothing
+
+For i = 0 To UBound(ss)
+    If ss(i) <> 0 Then
+        s = s & ado_db.get_table_name_from_id(i, "speeds") & ": "
+        s = s & ss(i) & "kn, "
+    End If
+Next i
+
+s = Left(s, Len(s) - 2)
+get_sail_plan_speed_string = s
+    
+If connect_here Then Call ado_db.disconnect_sp_ADO
+
+End Function
+                                            
+Public Function check_route_in_use(route_name As String) As Boolean
+'will check in the active database whether the route is in use in a sail plan
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+If sp_conn Is Nothing Then
+    Call ado_db.connect_sp_ADO
+    connect_here = True
+End If
+Set rst = ado_db.ADO_RST
+
+qstr = "SELECT * FROM sail_plans WHERE route_naam = '" & route_name & "';"
+rst.Open qstr
+
+If rst.RecordCount > 0 Then check_route_in_use = True
 
 If connect_here Then Call ado_db.disconnect_sp_ADO
 

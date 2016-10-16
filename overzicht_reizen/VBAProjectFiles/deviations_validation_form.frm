@@ -24,7 +24,7 @@ B = False
 
 For Each ctr In Me.Controls
     If InStr(1, ctr.Name, "tb_", vbTextCompare) <> 0 Then
-        If Not IsNumeric(ctr.text) Then
+        If Not IsNumeric(ctr.Text) Then
             ctr.BackColor = vbRed
             B = True
         Else

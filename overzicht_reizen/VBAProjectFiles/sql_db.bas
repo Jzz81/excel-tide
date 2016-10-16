@@ -6,9 +6,6 @@ Option Private Module
 
 Const db_location As String = ":memory:"
 
-Dim T0 As Long
-Dim T1 As Long
-
 Dim tresholds_collection As Collection
 Dim hw_collection As Collection
 
@@ -51,16 +48,10 @@ With FeedbackForm
     'try to get all tables from the access database
         Call sql_db.copy_database_layout
     
-    'timer
-        T0 = GetTickCount
-    
     FeedbackForm.FeedbackLBL = "Getijdegegevens inladen..."
     'try to get all data from the access database
         Call sql_db.copy_database_data
     
-    'timer
-        Debug.Print GetTickCount - T0
-            
     'copy to hw database data as well. Disconnect first:
         Call ado_db.disconnect_tidal_ADO
     'connect hw database
@@ -80,7 +71,7 @@ End With
         Call sql_db.close_memory_db
     End If
 
-Unload FeedbackForm
+unload FeedbackForm
 
 If connect_here Then Call ado_db.disconnect_tidal_ADO
 
@@ -164,26 +155,26 @@ Dim handl As LongPtr
 #Else
 Dim handl As Long
 #End If
-Dim Qstr1 As String
-Dim Qstr2 As String
+Dim qstr1 As String
+Dim qstr2 As String
 Dim i As Long
 Dim i_max As Long
 Dim update_progress As Boolean
 Dim Progress As Double
 
 'prepare part 1 of the sql string
-Qstr1 = "INSERT INTO '" & table & "_hw' ('DateTime', 'Extr', 'Dev') VALUES "
+qstr1 = "INSERT INTO '" & table & "_hw' ('DateTime', 'Extr', 'Dev') VALUES "
 
 'loop data array
 i_max = UBound(v, 2)
 Do Until i >= i_max
-    Qstr2 = vbNullString
+    qstr2 = vbNullString
     'loop the data array again, this time add each data row to the 2nd part of the sql string
     For i = i To i_max
         'add this data row from the array to the sql string
-        Qstr2 = Qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" _
+        qstr2 = qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" _
             & v(1, i) & "', '" _
-            & Format(v(2, i), "#.0") & "'), "
+            & Format(v(2, i), "0.0") & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
             i = i + 1
@@ -201,11 +192,11 @@ Do Until i >= i_max
     update_progress = Not update_progress
     
     'finish the sql string
-    Qstr2 = Left(Qstr2, Len(Qstr2) - 2) & ";"
+    qstr2 = Left(qstr2, Len(qstr2) - 2) & ";"
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
-    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr1 + qstr2, handl
     'should be 101
     SQLite3.SQLite3Step handl
     'should be 0
@@ -221,26 +212,26 @@ Dim handl As LongPtr
 #Else
 Dim handl As Long
 #End If
-Dim Qstr1 As String
-Dim Qstr2 As String
+Dim qstr1 As String
+Dim qstr2 As String
 Dim i As Long
 Dim i_max As Long
 Dim update_progress As Boolean
 Dim Progress As Double
 
 'prepare part 1 of the sql string
-Qstr1 = "INSERT INTO '" & table & "' ('DateTime', 'Rise') VALUES "
+qstr1 = "INSERT INTO '" & table & "' ('DateTime', 'Rise') VALUES "
 
 'loop data array
 i_max = UBound(v, 2)
 Do Until i >= i_max
-    Qstr2 = vbNullString
+    qstr2 = vbNullString
     'loop the data array again, this time add each data row to the 2nd part of the sql string
     For i = i To i_max
         'add this data row from the array to the sql string
         'add formatting to the julian date, because sqlite does not seem to accept
         'round numbers; it let out every noon value (julian day being a round number)
-        Qstr2 = Qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" & _
+        qstr2 = qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" & _
             Format(v(1, i), "#.00") & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
@@ -259,11 +250,11 @@ Do Until i >= i_max
     update_progress = Not update_progress
     
     'finish the sql string
-    Qstr2 = Left(Qstr2, Len(Qstr2) - 2) & ";"
+    qstr2 = Left(qstr2, Len(qstr2) - 2) & ";"
     'add the data rows from the data array (assambled in the sql string) into the
     'sqlite database
     'should be 0
-    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, Qstr1 + Qstr2, handl
+    SQLite3.SQLite3PrepareV2 sql_db.DB_HANDLE, qstr1 + qstr2, handl
     'should be 101
     SQLite3.SQLite3Step handl
     'should be 0
@@ -306,7 +297,8 @@ Public Function check_sqlite_db_is_loaded() As Boolean
         check_sqlite_db_is_loaded = True
     End If
 End Function
-Public Function DB_HANDLE(Optional reset As Boolean = False, Optional open_new_db As Boolean = False) As Long
+
+Public Function DB_HANDLE(Optional reset As Boolean = False, Optional open_new_db As Boolean = False) As LongPtr
 #If Win64 Then
 Dim h As LongPtr
 #Else

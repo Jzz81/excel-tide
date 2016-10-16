@@ -16,12 +16,13 @@ Attribute VB_Exposed = False
 
 Option Explicit
 
+
 Private Sub CommandButton1_Click()
     Call proj.settings_form_ok_click
 End Sub
 
 Private Sub CommandButton2_Click()
-    Unload Me
+    unload Me
 End Sub
 
 Private Sub path_btn_hw_data_Click()
@@ -40,3 +41,6 @@ Private Sub path_btn_tidal_data_Click()
     Me.path_tb_tidal_data.Value = aux_.get_single_file("Selecteer de database")
 End Sub
 
+Private Sub UserForm_Click()
+
+End Sub

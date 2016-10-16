@@ -1,5 +1,8 @@
 Attribute VB_Name = "Sqlite3"
 Option Explicit
+Option Base 0
+Option Compare Text
+Option Private Module
 
 ' Notes:
 ' Microsoft uses UTF-16, little endian byte order.

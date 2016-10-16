@@ -149,11 +149,11 @@ Public Property Let Tag(sTag As String)
     sPTag = sTag
 End Property
 
-Public Property Get Parent() As control
+Public Property Get parent() As control
     If bInit Then
-        Set Parent = CBxY.Parent.Parent
+        Set parent = CBxY.parent.parent
     Else
-        Set Parent = Nothing
+        Set parent = Nothing
     End If
 End Property
 
@@ -215,7 +215,7 @@ End Property
 Public Property Let TabIndex(ByVal lTabIndex As Long)
     lPTabIndex = lTabIndex
     If bInit Then
-        CBxY.Parent.TabIndex = lTabIndex
+        CBxY.parent.TabIndex = lTabIndex
     End If
 End Property
 
@@ -226,7 +226,7 @@ End Property
 Public Property Let TabStop(ByVal bTabStop As Boolean)
     bPTabStop = bTabStop
     If bInit Then
-        CBxY.Parent.TabStop = bTabStop
+        CBxY.parent.TabStop = bTabStop
     End If
 End Property
 
@@ -282,7 +282,7 @@ End Property
 Public Property Let Visible(ByVal bVisible As Boolean)
     bPVisible = bVisible
     If bInit Then
-        CBxY.Parent.Visible = bVisible
+        CBxY.parent.Visible = bVisible
     End If
 End Property
 
@@ -293,7 +293,7 @@ End Property
 Public Property Let Left(ByVal sLeft As Single)
     sPLeft = sLeft
     If bInit Then
-        CBxY.Parent.Left = sLeft
+        CBxY.parent.Left = sLeft
     End If
 End Property
 
@@ -304,7 +304,7 @@ End Property
 Public Property Let Top(ByVal ssTop As Single)
     sPTop = ssTop
     If bInit Then
-        CBxY.Parent.Top = ssTop
+        CBxY.parent.Top = ssTop
     End If
 End Property
 
@@ -315,7 +315,7 @@ End Property
 Public Property Let Height(ByVal sHeight As Single)
     sPHeight = sHeight
     If bInit Then
-        CBxY.Parent.Height = sHeight
+        CBxY.parent.Height = sHeight
         Call Move
     End If
 End Property
@@ -329,7 +329,7 @@ Public Property Let Width(ByVal sWidth As Single)
     'sWidth = Zero_Negative_Value(sWidth)
     sPWidth = sWidth
     If bInit Then
-        CBxY.Parent.Width = sWidth
+        CBxY.parent.Width = sWidth
         Call Move
     End If
 End Property
@@ -341,7 +341,7 @@ End Property
 Public Property Let BackColor(ByVal lBackColor As Long)
     lPBackColor = lBackColor
     If bInit Then
-        CBxY.Parent.BackColor = lBackColor
+        CBxY.parent.BackColor = lBackColor
     End If
 End Property
 
@@ -867,8 +867,8 @@ Public Sub Move( _
         Optional vHeight, _
         Optional vLayout)
         
-    Dim i As Long, l As Currency, B As Currency, lc As Currency, bc As Currency
-    Dim t As Long, b_ym As Currency, b_combo_m As Currency
+    Dim i As Long, L As Currency, B As Currency, lc As Currency, bc As Currency
+    Dim T As Long, b_ym As Currency, b_combo_m As Currency
     
     Const h_combo As Long = 16
     Const b_combo_y As Long = 42
@@ -876,18 +876,18 @@ Public Sub Move( _
     b_ym = b_combo_y + 2 + b_combo_m
     
     If bInit Then
-        t = IIf(ShowDays, 7, 6)
+        T = IIf(ShowDays, 7, 6)
         
-        With CBxY.Parent 'Frame
+        With CBxY.parent 'Frame
             sPTop = IIf(IsMissing(vTop), IIf(Top = -1, .Top, Top), vTop)
             sPLeft = IIf(IsMissing(vLeft), IIf(Left = -1, .Left, Left), vLeft)
             sPHeight = IIf(IsMissing(vHeight), IIf(Height = -1, .Height, Height), vHeight)
             sPWidth = IIf(IsMissing(vWidth), IIf(Width = -1, .Width, Width), vWidth)
             
-            l = Height
+            L = Height
             B = Width
-            l = Zero_Negative_Value(l - IIf(ShowTitle Or ShowDateSelectors, h_combo, 0) - 1)
-            lc = CCur(l / t)
+            L = Zero_Negative_Value(L - IIf(ShowTitle Or ShowDateSelectors, h_combo, 0) - 1)
+            lc = CCur(L / T)
             bc = CCur(B / 7)
             B = bc * 7
         End With
@@ -959,17 +959,17 @@ Public Sub Move( _
 End Sub
 
 Public Sub NextDay()
-    Dim D As Date
-    D = dValue + 1
-    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
-    Value = D
+    Dim d As Date
+    d = dValue + 1
+    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
+    Value = d
 End Sub
 
 Public Sub NextWeek()
-    Dim D As Date
-    D = dValue + 7
-    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
-    Value = D
+    Dim d As Date
+    d = dValue + 7
+    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
+    Value = d
 End Sub
 
 Public Sub NextMonth()
@@ -977,23 +977,23 @@ Public Sub NextMonth()
 End Sub
 
 Public Sub NextYear()
-    Dim D As Date
-    D = VBA.DateSerial(CheckYear(VBA.Year(dValue) + 1), VBA.Month(dValue), VBA.Day(dValue))
-    Value = D
+    Dim d As Date
+    d = VBA.DateSerial(CheckYear(VBA.Year(dValue) + 1), VBA.Month(dValue), VBA.Day(dValue))
+    Value = d
 End Sub
 
 Public Sub PreviousDay()
-    Dim D As Date
-    D = dValue - 1
-    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
-    Value = D
+    Dim d As Date
+    d = dValue - 1
+    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
+    Value = d
 End Sub
 
 Public Sub PreviousWeek()
-    Dim D As Date
-    D = dValue - 7
-    D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D))
-    Value = D
+    Dim d As Date
+    d = dValue - 7
+    d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d))
+    Value = d
 End Sub
 
 Public Sub PreviousMonth()
@@ -1001,15 +1001,14 @@ Public Sub PreviousMonth()
 End Sub
 
 Public Sub PreviousYear()
-    Dim D As Date
-    D = VBA.DateSerial(CheckYear(VBA.Year(dValue) - 1), VBA.Month(dValue), VBA.Day(dValue))
-    Value = D
+    Dim d As Date
+    d = VBA.DateSerial(CheckYear(VBA.Year(dValue) - 1), VBA.Month(dValue), VBA.Day(dValue))
+    Value = d
 End Sub
 
 Public Sub Today()
     Value = VBA.Date
 End Sub
-
 Public Sub Refresh()
     If bInit Then
         Call Refresh_Panel(VBA.Month(dValue), VBA.Year(dValue))
@@ -1156,7 +1155,7 @@ End Sub
 '# Private Function
 
 Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
-    Dim v(0 To 41) As Date, i As Long, G As Long, l As Long, p As Long, t As Date
+    Dim v(0 To 41) As Date, i As Long, G As Long, L As Long, p As Long, T As Date
     
     i = VBA.DateTime.Weekday(VBA.DateSerial(lYear, lMonth, 1), 1 + lPFirstDay Mod 7) - 1
     
@@ -1165,28 +1164,28 @@ Private Function ArraY_Days(ByVal lMonth As Long, ByVal lYear As Long)
     G = VBA.Day(VBA.DateSerial(lYear, lMonth + 1, 0)) + i
     
     p = 1
-    For l = i To 0 Step -1
-        v(l) = VBA.DateSerial(lYear, lMonth, p)
+    For L = i To 0 Step -1
+        v(L) = VBA.DateSerial(lYear, lMonth, p)
         p = p - 1
     Next
     
     p = 0
-    For l = i To G
+    For L = i To G
         p = p + 1
-        v(l) = VBA.DateSerial(lYear, lMonth, p)
+        v(L) = VBA.DateSerial(lYear, lMonth, p)
     Next
     
-    For l = G To 41
-        v(l) = VBA.DateSerial(lYear, lMonth, p)
+    For L = G To 41
+        v(L) = VBA.DateSerial(lYear, lMonth, p)
         p = p + 1
     Next
     
     If bPRightToLeft Then
-        For l = 0 To 5
+        For L = 0 To 5
             For i = 0 To 2
-                t = v(l * 7 + i)
-                v(l * 7 + i) = v(l * 7 + (6 - i))
-                v(l * 7 + (6 - i)) = t
+                T = v(L * 7 + i)
+                v(L * 7 + i) = v(L * 7 + (6 - i))
+                v(L * 7 + (6 - i)) = T
             Next
         Next
     End If
@@ -1202,7 +1201,7 @@ Private Sub RenderLabel()
     b_ym = b_combo_y + 2 + b_combo_m
     
     If bInit Then
-        B = CBxY.Parent.Width
+        B = CBxY.parent.Width
         If bPYearFirst Then
             CLb.Caption = CBxY.Value & " " & CBxM.Value
         Else
@@ -1228,9 +1227,9 @@ End Function
 
 
 Private Function SumMonthsToDate(dDate As Date, Optional lMonth As Long = 1) As Date
-    Dim D As Date
+    Dim d As Date
     
-    D = VBA.DateSerial( _
+    d = VBA.DateSerial( _
             VBA.Year(dDate), _
             VBA.Month(dDate) + lMonth, _
             fMin( _
@@ -1241,8 +1240,8 @@ Private Function SumMonthsToDate(dDate As Date, Optional lMonth As Long = 1) As 
                     VBA.Month(dDate) + 1 + VBA.Abs(lMonth), _
                     0))))
                     
-    If D = VBA.DateSerial(CheckYear(VBA.Year(D)), VBA.Month(D), VBA.Day(D)) Then
-        SumMonthsToDate = D
+    If d = VBA.DateSerial(CheckYear(VBA.Year(d)), VBA.Month(d), VBA.Day(d)) Then
+        SumMonthsToDate = d
     Else
         SumMonthsToDate = dDate
     End If
@@ -1385,7 +1384,7 @@ Private Sub Refresh_Selected_Day(ByVal dValue As Date)
 End Sub
 
 Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
-    Dim v As Variant, i As Long, l As Long
+    Dim v As Variant, i As Long, L As Long
     Dim iDay As Long
     
     If bInit Then
@@ -1509,18 +1508,18 @@ Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
         Next
         
         If UseDefaultBackColors = False Then
-            For l = 0 To 6
-                If mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleTransparent Then
-                    mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleOpaque
+            For L = 0 To 6
+                If mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleTransparent Then
+                    mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleOpaque
                 End If
-                If mLabelButtons(l).Obj_CmBl.BackColor <> lPHeaderBackColor Then
-                    mLabelButtons(l).Obj_CmBl.BackColor = lPHeaderBackColor
+                If mLabelButtons(L).Obj_CmBl.BackColor <> lPHeaderBackColor Then
+                    mLabelButtons(L).Obj_CmBl.BackColor = lPHeaderBackColor
                 End If
             Next
         Else
-            For l = 0 To 6
-                If mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleOpaque Then
-                   mLabelButtons(l).Obj_CmBl.BackStyle = fmBackStyleTransparent
+            For L = 0 To 6
+                If mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleOpaque Then
+                   mLabelButtons(L).Obj_CmBl.BackStyle = fmBackStyleTransparent
                 End If
         Next
         End If
@@ -1535,11 +1534,11 @@ Private Sub Refresh_Panel(ByVal lMonth As Long, ByVal lYear As Long)
     End If
 End Sub
 
-Private Function CheckValue(D) As Boolean
-    If VarType(D) = vbDate Then
-        Select Case D
+Private Function CheckValue(d) As Boolean
+    If VarType(d) = vbDate Then
+        Select Case d
             Case 1462 To 74510
-                CheckValue = CLng(D) = D
+                CheckValue = CLng(d) = d
         End Select
     End If
 End Function

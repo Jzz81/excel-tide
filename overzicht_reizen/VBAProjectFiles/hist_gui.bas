@@ -1,5 +1,7 @@
 Attribute VB_Name = "hist_gui"
 Option Explicit
+Option Base 0
+Option Compare Text
 Option Private Module
 
 Dim Drawing As Boolean
@@ -35,7 +37,7 @@ If arch_conn Is Nothing Then
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
 'select all sail plans
-qstr = "SELECT * FROM sail_plans WHERE " _
+qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
     & "treshold_index = 0 AND " _
     & "route_ingoing = TRUE AND " _
     & "route_shift = FALSE " _
@@ -97,7 +99,7 @@ If arch_conn Is Nothing Then
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
 'select all sail plans
-qstr = "SELECT * FROM sail_plans WHERE " _
+qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
     & "treshold_index = 0 AND " _
     & "route_ingoing = FALSE AND " _
     & "route_shift = FALSE " _
@@ -158,7 +160,7 @@ If arch_conn Is Nothing Then
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
 'select all sail plans
-qstr = "SELECT * FROM sail_plans WHERE " _
+qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
     & "treshold_index = 0 AND " _
     & "route_shift = TRUE " _
     & "ORDER BY local_eta ASC;"
@@ -227,9 +229,12 @@ sh.Cells(rw, 6) = eta
 End Sub
 
 Public Sub display_history_sail_plan()
+Dim id As Long
+Dim rst As ADODB.Recordset
+Dim qstr As String
 Dim sh As Worksheet
 Dim rw As Long
-Dim r As Range
+Dim R As Range
 Dim connect_here As Boolean
 
 If Drawing Then Exit Sub
@@ -246,32 +251,45 @@ rw = Selection.Cells(1, 1).Row
 'check if a sail_plan is selected
     If Not IsNumeric(sh.Cells(rw, 1)) Or Len(sh.Cells(rw, 1)) = 0 Then GoTo exitsub
 
+'get id
+    id = sh.Cells(rw, 1)
+
 'activate draught cell
     sh.Cells(rw, 5).Activate
 
 'highlight selected sail_plan with borders
-    Set r = sh.Range(sh.Cells(3, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 6))
-    r.Borders.LineStyle = xlNone
+    Set R = sh.Range(sh.Cells(3, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 6))
+    R.Borders.LineStyle = xlNone
     
-    Set r = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6))
-    r.Borders.LineStyle = xlContinuous
-    r.Borders.Weight = xlMedium
-    r.Borders(xlInsideVertical).LineStyle = xlNone
-    r.Borders(xlInsideHorizontal).LineStyle = xlNone
-    Set r = Nothing
+    Set R = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6))
+    R.Borders.LineStyle = xlContinuous
+    R.Borders.Weight = xlMedium
+    R.Borders(xlInsideVertical).LineStyle = xlNone
+    R.Borders(xlInsideHorizontal).LineStyle = xlNone
+    Set R = Nothing
 
 'connect db
     If arch_conn Is Nothing Then
         Call ado_db.connect_arch_ADO
         connect_here = True
     End If
+    Set rst = ado_db.ADO_RST(arch_conn)
+
+'select sail plan from db
+    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
+    rst.Open qstr
 
 'draw the sail plan
-    Call draw_tidal_windows(rw)
-    Call draw_path(rw)
+    Call sail_plan_construct_drawing_constants(rst)
+    Call draw_tidal_windows(rst)
+    Call draw_path(rst)
 
 'write the sail plan data
-    Call write_tidal_data(rw)
+    Call write_tidal_data(rst)
+
+'close and null recordset
+    rst.Close
+    Set rst = Nothing
 
 'disconnect db
     If connect_here Then Call ado_db.disconnect_arch_ADO
@@ -284,18 +302,58 @@ Set sh = Nothing
 Application.ScreenUpdating = True
 Drawing = False
 End Sub
-Private Sub write_tidal_data(rw As Long)
+Private Sub sail_plan_construct_drawing_constants(ByRef rst As ADODB.Recordset)
+'Construct drawing constants with this rst. Move back to first record before exit
+rst.MoveFirst
+
+SAIL_PLAN_START_GLOBAL_FRAME = rst!local_eta
+SAIL_PLAN_END_GLOBAL_FRAME = rst!local_eta
+
+Do Until rst.EOF
+    'start
+    If SAIL_PLAN_START_GLOBAL_FRAME > rst!local_eta Then SAIL_PLAN_START_GLOBAL_FRAME = rst!local_eta
+    If Not IsNull(rst!rta) Then
+        If SAIL_PLAN_START_GLOBAL_FRAME > rst!rta Then SAIL_PLAN_START_GLOBAL_FRAME = rst!rta
+    End If
+    If Not IsNull(rst!ata) Then
+        If SAIL_PLAN_START_GLOBAL_FRAME > rst!ata Then SAIL_PLAN_START_GLOBAL_FRAME = rst!ata
+    End If
+    'end
+    If SAIL_PLAN_END_GLOBAL_FRAME < rst!local_eta Then SAIL_PLAN_END_GLOBAL_FRAME = rst!local_eta
+    If Not IsNull(rst!rta) Then
+        If SAIL_PLAN_END_GLOBAL_FRAME < rst!rta Then SAIL_PLAN_END_GLOBAL_FRAME = rst!rta
+    End If
+    If Not IsNull(rst!ata) Then
+        If SAIL_PLAN_END_GLOBAL_FRAME < rst!ata Then SAIL_PLAN_END_GLOBAL_FRAME = rst!ata
+    End If
+    
+    rst.MoveNext
+Loop
+'substract / add eval frame
+    SAIL_PLAN_START_GLOBAL_FRAME = SAIL_PLAN_START_GLOBAL_FRAME - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+    SAIL_PLAN_END_GLOBAL_FRAME = SAIL_PLAN_END_GLOBAL_FRAME + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+
+rst.MoveLast
+If rst!distance_to_here > 0 Then
+    SAIL_PLAN_MILE_LENGTH = SAIL_PLAN_GRAPH_DRAW_WIDTH / rst!distance_to_here
+Else
+    SAIL_PLAN_MILE_LENGTH = 1
+End If
+
+rst.MoveFirst
+SAIL_PLAN_DAY_LENGTH = (SAIL_PLAN_GRAPH_DRAW_BOTTOM - SAIL_PLAN_GRAPH_DRAW_TOP) _
+    / (SAIL_PLAN_END_GLOBAL_FRAME - SAIL_PLAN_START_GLOBAL_FRAME)
+
+End Sub
+
+Private Sub write_tidal_data(rst As ADODB.Recordset)
 'write the tidal window data
 Dim sh As Worksheet
-Dim id As Long
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
 Dim ss() As String
 Dim ss1() As String
 Dim i As Long
 Dim ii As Long
-Dim D As Double
+Dim d As Double
 Dim s_dif As Long
 Dim last_ata_time As Date
 Dim last_ata_dist As Double
@@ -306,27 +364,16 @@ Dim devs As Collection
 Dim dev_string As String
 Dim dev_name As String
 
+Dim rw As Long
 Dim rw_add  As Long
 
 Dim jd0 As Double
 Dim jd1 As Double
 
 Set sh = ActiveSheet
-id = sh.Cells(rw, 1)
-
-'connect db
-If arch_conn Is Nothing Then
-    Call ado_db.connect_arch_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST(arch_conn)
 
 'setup devs collection
     Set devs = New Collection
-
-'select sail plan from db
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
 
 has_restrictions = sail_plan_has_tidal_restrictions(rst)
 
@@ -387,9 +434,9 @@ With sh
         'name of deviation point
             .Cells(rw, 12) = ado_db.get_table_name_from_id(rst!deviation_id, "deviations")
         'rise value
-            D = (rst!treshold_depth - rst!ukc - rst!ship_draught)
-            If D < 0 Then
-                .Cells(rw, 13) = Format(-D, "0.0")
+            d = (rst!treshold_depth - rst!ukc - rst!ship_draught)
+            If d < 0 Then
+                .Cells(rw, 13) = Format(-d, "0.0")
             Else
                 .Cells(rw, 13) = "0"
             End If
@@ -459,7 +506,7 @@ With sh
         For i = 1 To devs.Count
             dev_name = ado_db.get_table_name_from_id( _
                                     id:=CLng(devs(i)), _
-                                    t:="deviations")
+                                    T:="deviations")
             .Cells(rw, 9 + (i - 1) * 2) = dev_name & ":"
             dev_string = deviations_retreive_devs_from_db( _
                     jd0:=jd0, _
@@ -477,8 +524,8 @@ With sh
         Set devs = Nothing
 
 End With
-    
-If connect_here Then Call ado_db.disconnect_sp_ADO
+
+rst.MoveFirst
 
 End Sub
 Private Function sail_plan_has_tidal_restrictions(ByRef rst As ADODB.Recordset) As Boolean
@@ -500,19 +547,13 @@ Else
 End If
 
 End Function
-Private Sub draw_tidal_windows(rw As Long)
+Private Sub draw_tidal_windows(rst As ADODB.Recordset)
 'display the data for the selected sailplan.
 Dim sh As Worksheet
-Dim id As Long
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
 Dim s As String
 Dim ss1() As String
 Dim ss2() As String
-Dim start_global_frame As Date
 Dim start_frame As Date
-Dim end_global_frame As Date
 Dim end_frame As Date
 Dim i As Long
 Dim last_end_of_window As Date
@@ -526,80 +567,6 @@ Set sh = ActiveSheet
 'clean sheet
 Call clean_sail_plan(sh)
 
-id = sh.Cells(rw, 1)
-
-'connect db
-    If arch_conn Is Nothing Then
-        Call ado_db.connect_sp_ADO
-        connect_here = True
-    End If
-    Set rst = ado_db.ADO_RST(arch_conn)
-
-'select sail plan from db
-    qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-    rst.Open qstr
-
-'construct drawing constants
-    'get first / last date/time of interest (ata, start of tidal window, rta)
-'construct drawing constants
-    If Not IsNull(rst!rta) Then
-        start_global_frame = rst!rta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
-    Else
-        start_global_frame = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
-    End If
-    
-    rst.MoveLast
-    
-    If Not IsNull(rst!rta) Then
-        end_global_frame = rst!rta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
-    Else
-        end_global_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
-    End If
-    
-    If rst!distance_to_here > 0 Then
-        SAIL_PLAN_MILE_LENGTH = SAIL_PLAN_GRAPH_DRAW_WIDTH / rst!distance_to_here
-    Else
-        SAIL_PLAN_MILE_LENGTH = 1
-    End If
-    rst.MoveFirst
-    SAIL_PLAN_DAY_LENGTH = (SAIL_PLAN_GRAPH_DRAW_BOTTOM - SAIL_PLAN_GRAPH_DRAW_TOP) / (end_global_frame - start_global_frame)
-    
-'
-'    start_global_frame = rst!tidal_window_start
-'    end_global_frame = rst!tidal_window_end
-'    Do Until rst.EOF
-'        'start
-'        If start_global_frame > rst!tidal_window_start Then start_global_frame = rst!tidal_window_start
-'        If start_global_frame > rst!ata Then start_global_frame = rst!ata
-'        If Not IsNull(rst!rta) Then
-'            If start_global_frame > rst!rta Then start_global_frame = rst!rta
-'        End If
-'        'end
-'        If end_global_frame < rst!tidal_window_end Then end_global_frame = rst!tidal_window_end
-'        If end_global_frame < rst!ata Then end_global_frame = rst!ata
-'        If Not IsNull(rst!rta) Then
-'            If end_global_frame < rst!rta Then end_global_frame = rst!rta
-'        End If
-'
-'        rst.MoveNext
-'    Loop
-'
-'    has_restrictions = sail_plan_has_tidal_restrictions(rst)
-'
-'    start_global_frame = start_global_frame - TimeSerial(2, 0, 1)
-'    end_global_frame = end_global_frame + TimeSerial(2, 0, 1)
-'
-'    rst.MoveLast
-'
-'    If rst!distance_to_here > 0 Then
-'        SAIL_PLAN_MILE_LENGTH = SAIL_PLAN_GRAPH_DRAW_WIDTH / rst!distance_to_here
-'    Else
-'        SAIL_PLAN_MILE_LENGTH = 1
-'    End If
-'
-'    rst.MoveFirst
-'
-'    SAIL_PLAN_DAY_LENGTH = (SAIL_PLAN_GRAPH_DRAW_BOTTOM - SAIL_PLAN_GRAPH_DRAW_TOP) / (end_global_frame - start_global_frame)
 
 'loop tresholds in sail plan
 Do Until rst.EOF
@@ -607,7 +574,8 @@ Do Until rst.EOF
 '    start_frame = start_global_frame
 '    end_frame = end_global_frame
     'get frame start and end times (evaluation frame)
-    If Not IsNull(rst!rta) Then
+    
+     If Not IsNull(rst!rta) Then
         start_frame = rst!rta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
         end_frame = rst!rta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
     Else
@@ -642,31 +610,31 @@ Do Until rst.EOF
         'red part at start
             If Not B Then 'And has_restrictions Then
                 Call DrawWindow(draw_bottom:=SAIL_PLAN_GRAPH_DRAW_BOTTOM - _
-                                    (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                                    (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                                 start_frame:=start_frame, _
                                 start_time:=start_frame, _
                                 end_time:=dt1, _
                                 distance:=rst!distance_to_here, _
-                                draw:=B, _
+                                Draw:=B, _
                                 green:=False)
             End If
         'red in between
             Call DrawWindow(draw_bottom:=SAIL_PLAN_GRAPH_DRAW_BOTTOM - _
-                                (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                                (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame:=start_frame, _
                             start_time:=last_end_of_window, _
                             end_time:=dt1, _
                             distance:=rst!distance_to_here, _
-                            draw:=B, _
+                            Draw:=B, _
                             green:=False)
         'draw frame
             Call DrawWindow(draw_bottom:=SAIL_PLAN_GRAPH_DRAW_BOTTOM - _
-                                (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                                (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame:=start_frame, _
                             start_time:=dt1, _
                             end_time:=dt2, _
                             distance:=rst!distance_to_here, _
-                            draw:=B, _
+                            Draw:=B, _
                             green:=True)
             
         last_end_of_window = dt2
@@ -674,12 +642,12 @@ Do Until rst.EOF
     Next i
     'draw red part at the end of the frame (if applicable)
     Call DrawWindow(draw_bottom:=SAIL_PLAN_GRAPH_DRAW_BOTTOM - _
-                        (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                        (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                     start_frame:=start_frame, _
                     start_time:=last_end_of_window, _
                     end_time:=end_frame, _
                     distance:=rst!distance_to_here, _
-                    draw:=B, _
+                    Draw:=B, _
                     green:=False)
     'draw current windows, if applicable
     If rst!current_window Then
@@ -698,18 +666,18 @@ Do Until rst.EOF
                 If dt1 > end_frame Then dt1 = end_frame
                 If dt2 > end_frame Then dt2 = end_frame
             Call DrawWindow(draw_bottom:=SAIL_PLAN_GRAPH_DRAW_BOTTOM - _
-                        (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                        (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                     start_frame:=start_frame, _
                     start_time:=dt1, _
                     end_time:=dt2, _
                     distance:=rst!distance_to_here, _
                     green:=True, _
-                    draw:=B, _
+                    Draw:=B, _
                     dark:=True)
         Next i
     End If
 
-    Call DrawLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+    Call DrawLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             end_frame, _
                             rst!distance_to_here, _
@@ -717,13 +685,10 @@ Do Until rst.EOF
     rst.MoveNext
 Loop
         
-rst.Close
-
 exitsub:
 
-Set rst = Nothing
+rst.MoveFirst
 Set sh = Nothing
-If connect_here Then Call ado_db.disconnect_arch_ADO
         
 End Sub
 Private Sub DrawWindow(draw_bottom As Double, _
@@ -732,30 +697,30 @@ Private Sub DrawWindow(draw_bottom As Double, _
                         end_time As Date, _
                         distance As Double, _
                         green As Boolean, _
-                        ByRef draw As Boolean, _
+                        ByRef Draw As Boolean, _
                         Optional dark As Boolean)
 'sub to draw a shape
-Dim t As Double
-Dim l As Double
+Dim T As Double
+Dim L As Double
 Dim h As Double
 Dim w As Double
 Dim shp As Shape
-t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
-l = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
+T = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
+L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
 If dark Then
     w = 5
-    l = l - 1
+    L = L - 1
 Else
     w = 3
 End If
 
 If h = 0 Then Exit Sub
 
-draw = True
+Draw = True
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, l, t, w, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, T, w, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then
@@ -774,16 +739,16 @@ Private Sub DrawLabel(draw_bottom As Double, _
                         start_frame As Date, _
                         end_frame As Date, _
                         distance As Double, _
-                        text As String)
-Dim t As Double
-Dim l As Double
+                        Text As String)
+Dim T As Double
+Dim L As Double
 Dim shp As Shape
 Dim Pi As Double
 
 Pi = 4 * Atn(1)
 
-t = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
-l = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
+T = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
+L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
 
@@ -792,11 +757,11 @@ With shp
     .Line.Visible = msoFalse
     .Placement = xlFreeFloating
     .TextFrame2.TextRange.Characters.font.Size = 8
-    .TextFrame2.TextRange.Characters.text = text
+    .TextFrame2.TextRange.Characters.Text = Text
     .TextFrame.AutoSize = True
     'put center on top of colom:
-    .Top = t - .Height * 0.5
-    .Left = l - .Width * 0.5
+    .Top = T - .Height * 0.5
+    .Left = L - .Width * 0.5
     'rotate:
     .Rotation = -50
     'translate:.Width * 0.5 -
@@ -807,15 +772,9 @@ Set shp = Nothing
 
 End Sub
 
-Private Sub draw_path(rw As Long)
-Dim id As Long
+Private Sub draw_path(rst As ADODB.Recordset)
 Dim sh As Worksheet
-Dim connect_here As Boolean
-Dim rst As ADODB.Recordset
-Dim qstr As String
-Dim start_global_frame As Date
 Dim start_frame As Date
-Dim end_global_frame As Date
 Dim end_frame As Date
 Dim last_dist As Double
 Dim last_eta As Date
@@ -830,56 +789,17 @@ Dim has_restrictions As Boolean
 
 Set sh = ActiveSheet
 
-id = sh.Cells(rw, 1)
-
-'connect db
-If arch_conn Is Nothing Then
-    Call ado_db.connect_arch_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST(arch_conn)
-
-'select sail plan from db
-qstr = "SELECT * FROM sail_plans WHERE id = '" & id & "' ORDER BY treshold_index;"
-rst.Open qstr
-
 has_restrictions = sail_plan_has_tidal_restrictions(rst)
-
-'construct drawing constants
-'get first / last date/time of interest (ata, start of tidal window, rta)
-start_global_frame = rst!tidal_window_start
-end_global_frame = rst!tidal_window_end
-Do Until rst.EOF
-    'start
-    If start_global_frame > rst!tidal_window_start Then start_global_frame = rst!tidal_window_start
-    If start_global_frame > rst!ata Then start_global_frame = rst!ata
-    If Not IsNull(rst!rta) Then
-        If start_global_frame > rst!rta Then start_global_frame = rst!rta
-    End If
-    'end
-    If end_global_frame < rst!tidal_window_end Then end_global_frame = rst!tidal_window_end
-    If end_global_frame < rst!ata Then end_global_frame = rst!ata
-    If Not IsNull(rst!rta) Then
-        If end_global_frame < rst!rta Then end_global_frame = rst!rta
-    End If
-    
-    rst.MoveNext
-Loop
-
-start_global_frame = start_global_frame - TimeSerial(2, 0, 1)
-end_global_frame = end_global_frame + TimeSerial(2, 0, 1)
-
-rst.MoveFirst
 
 'tijden van de tijpoort weergeven
     If Not IsNull(rst!tidal_window_start) And has_restrictions Then
         Call DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
-                                    start_global_frame, _
+                                    SAIL_PLAN_START_GLOBAL_FRAME, _
                                     rst!tidal_window_start, _
                                     vbNullString, _
                                     True)
         Call DrawTimeLabel(SAIL_PLAN_GRAPH_DRAW_BOTTOM, _
-                                    start_global_frame, _
+                                    SAIL_PLAN_START_GLOBAL_FRAME, _
                                     rst!tidal_window_end, _
                                     vbNullString)
     End If
@@ -888,20 +808,25 @@ Do Until rst.EOF
     'get window length
         If window_len = 0 Then window_len = rst!tidal_window_end - rst!tidal_window_start
     'get frame start and end times (evaluation frame)
-        start_frame = start_global_frame
-        end_frame = end_global_frame
+        If Not IsNull(rst!rta) Then
+            start_frame = rst!rta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+            end_frame = rst!rta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+        Else
+            start_frame = rst!local_eta - TimeSerial(EVAL_FRAME_BEFORE, 0, 1)
+            end_frame = rst!local_eta + TimeSerial(EVAL_FRAME_AFTER, 0, 1)
+        End If
     
     If last_window_start > 0 Then
         
         If has_restrictions Then
             'draw tidal window
-            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             last_window_start, _
                             rst!tidal_window_start, _
                             last_dist, _
                             rst!distance_to_here)
-            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             last_window_start + window_len, _
                             rst!tidal_window_end, _
@@ -910,7 +835,7 @@ Do Until rst.EOF
         End If
         'draw the rta line (if needed)
         If Not IsNull(rst!rta) Then
-            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+            Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                             start_frame, _
                             last_eta, _
                             rst!rta, _
@@ -921,7 +846,7 @@ Do Until rst.EOF
         'draw the ata line
         If Not IsNull(rst!ata) Then
             If last_ata_time <> 0 Then
-                Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - start_global_frame) * SAIL_PLAN_DAY_LENGTH, _
+                Call draw_path_line(SAIL_PLAN_GRAPH_DRAW_BOTTOM - (start_frame - SAIL_PLAN_START_GLOBAL_FRAME) * SAIL_PLAN_DAY_LENGTH, _
                                 start_frame, _
                                 last_ata_time, _
                                 rst!ata, _
@@ -946,36 +871,33 @@ Do Until rst.EOF
     rst.MoveNext
 Loop
 
-rst.Close
-Set rst = Nothing
-
-If connect_here Then Call ado_db.disconnect_arch_ADO
+rst.MoveFirst
 
 End Sub
 Private Sub DrawTimeLabel(draw_bottom As Double, _
                             start_frame As Date, _
-                            t As Date, _
-                            text As String, _
+                            T As Date, _
+                            Text As String, _
                             Optional AlignTop As Boolean = False)
 
 Dim Tp As Double
-Dim l As Double
+Dim L As Double
 Dim shp As Shape
 
-Tp = draw_bottom - (t - start_frame) * SAIL_PLAN_DAY_LENGTH
-l = SAIL_PLAN_GRAPH_DRAW_LEFT
+Tp = draw_bottom - (T - start_frame) * SAIL_PLAN_DAY_LENGTH
+L = SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
 
 With shp
     .Placement = xlFreeFloating
     .TextFrame2.TextRange.Characters.font.Size = 8
-    If text = vbNullString Then
-        .TextFrame2.TextRange.Characters.text = _
-            Format(DST_GMT.ConvertToLT(t), "dd/mm hh:mm")
+    If Text = vbNullString Then
+        .TextFrame2.TextRange.Characters.Text = _
+            Format(DST_GMT.ConvertToLT(T), "dd/mm hh:mm")
     Else
-        .TextFrame2.TextRange.Characters.text = _
-            text & ": " & Format(DST_GMT.ConvertToLT(t), "hh:mm")
+        .TextFrame2.TextRange.Characters.Text = _
+            Text & ": " & Format(DST_GMT.ConvertToLT(T), "hh:mm")
     End If
     .TextFrame.AutoSize = True
     If AlignTop Then
@@ -983,7 +905,7 @@ With shp
     Else
         .Top = Tp - .Height
     End If
-    .Left = l - .Width
+    .Left = L - .Width
 End With
 Set shp = Nothing
 
@@ -1030,6 +952,7 @@ End Sub
 Private Sub restore_header(ByRef sh As Worksheet, txt As String)
 With sh
     .Cells(1, 2) = txt
+    .Cells(1, 3) = "(laatste 50 vaarplannen)"
     .Cells(2, 2) = "naam"
     .Cells(2, 3) = "reis"
     .Cells(2, 4) = "loa"

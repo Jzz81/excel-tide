@@ -1,5 +1,7 @@
 Attribute VB_Name = "mousewheel"
 Option Explicit
+Option Base 0
+Option Compare Text
 Option Private Module
 
 Private Type POINTAPI

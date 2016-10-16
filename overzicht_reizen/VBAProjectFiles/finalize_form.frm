@@ -27,22 +27,22 @@ Call proj.finalize_form_ok_click
 End Sub
 
 Private Sub planning_ob_no_Change()
-Dim l As Long
-l = 50
+Dim L As Long
+L = 50
 If Me.planning_ob_no.Value Then
     Me.reason_frame.Visible = True
-    Me.ata_frame.Top = Me.ata_frame.Top + l
-    Me.ok_btn.Top = Me.ok_btn.Top + l
-    Me.cancel_btn.Top = Me.cancel_btn.Top + l
-    Me.remarks_frame.Top = Me.remarks_frame.Top + l
-    Me.Height = Me.Height + l
+    Me.ata_frame.Top = Me.ata_frame.Top + L
+    Me.ok_btn.Top = Me.ok_btn.Top + L
+    Me.cancel_btn.Top = Me.cancel_btn.Top + L
+    Me.remarks_frame.Top = Me.remarks_frame.Top + L
+    Me.Height = Me.Height + L
 Else
     Me.reason_frame.Visible = False
-    Me.ata_frame.Top = Me.ata_frame.Top - l
-    Me.ok_btn.Top = Me.ok_btn.Top - l
-    Me.cancel_btn.Top = Me.cancel_btn.Top - l
-    Me.remarks_frame.Top = Me.remarks_frame.Top - l
-    Me.Height = Me.Height - l
+    Me.ata_frame.Top = Me.ata_frame.Top - L
+    Me.ok_btn.Top = Me.ok_btn.Top - L
+    Me.cancel_btn.Top = Me.cancel_btn.Top - L
+    Me.remarks_frame.Top = Me.remarks_frame.Top - L
+    Me.Height = Me.Height - L
 End If
 
 End Sub

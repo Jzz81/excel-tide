@@ -63,6 +63,19 @@ Option Private Module
 '
 '
 'End Sub
+
+Public Sub output(outputstring As String, Optional linebreak As Boolean = True)
+'will output string
+If DEBUG_MODE Then
+    If linebreak Then
+        Debug.Print outputstring
+    Else
+        Debug.Print outputstring,
+    End If
+End If
+
+End Sub
+
 Public Function get_single_file(title As String) As String
 'opens the file picker dialog with a custom title
 'only single files are supported
@@ -109,6 +122,48 @@ For i = 1 To c.Count
     End If
 Next i
 
+End Function
+Public Function add_string_to_collection_if_unique(c As Collection, _
+                                                    s As String) As Boolean
+'checks if a string is in collection c. If not, it will add it.
+'great for creating unique collections
+If Not string_is_in_collection(c, s, True) Then
+    c.Add s
+    add_string_to_collection_if_unique = True
+End If
+End Function
+Public Function sort_collection_of_strings(colStrings As Collection, _
+    Optional vbCompareMethod = vbTextCompare) As Collection
+
+    Dim colResult As New Collection
+    Dim inString
+    Dim outString
+    Dim Index As Integer
+    
+    For Each inString In colStrings
+        
+        ' lookup insert position
+        Index = 0
+        For Each outString In colResult
+        If StrComp(outString, inString, vbCompareMethod) > 0 Then
+                Exit For
+            End If
+            Index = Index + 1
+        Next
+        
+        ' insert string
+        If Index <> 0 Then
+            colResult.Add Item:=inString, After:=Index
+        Else
+            If colResult.Count > 0 Then
+                colResult.Add Item:=inString, Before:=1
+            Else
+                colResult.Add Item:=inString
+                ' no pos args allowed while col is empty
+            End If
+        End If
+    Next
+    Set sort_collection_of_strings = colResult
 End Function
 Public Function convert_array_to_seperated_string(arr As Variant, seperator As String) As String
 'converts the given array to a string with the values seperated by seperator

@@ -22,7 +22,7 @@ Option Compare Text
 Private Sub save_close_btn_Click()
     Call proj.treshold_form_save_click
     Call ws_gui.display_sail_plan
-    Unload Me
+    unload Me
 End Sub
 Private Sub SaveBtn_Click()
     Call proj.treshold_form_save_click
@@ -71,21 +71,10 @@ Private Sub TextBox5_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift
 KeyCode = validate_keycode(CLng(KeyCode))
 End Sub
 
-Private Sub tidal_data_cmb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-'start the hook
-    UnhookListScroll
-    HookListScroll Me, Me.tidal_data_cmb
-End Sub
-
 Private Sub tresholds_lb_Click()
     Call proj.treshold_form_listbox_click
 End Sub
 
-Private Sub tresholds_lb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-'start the hook
-    UnhookListScroll
-    HookListScroll Me, Me.tresholds_lb
-End Sub
 
 Private Sub UserForm_Initialize()
     Me.tresholds_lb.ColumnCount = 2

@@ -17,22 +17,51 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Public cancelflag As Boolean
+Public vessel_underway As Boolean
 
 Dim caller_ctr As MSForms.control
 Private WithEvents cal As cCalendar
 Attribute cal.VB_VarHelpID = -1
 
 Private Sub cal_Click()
-caller_ctr.text = cal.Value
+caller_ctr.Text = cal.Value
 
 End Sub
 
 Private Sub cal_DblClick()
-caller_ctr.text = cal.Value
-Call destroy_datepicker
-
+    caller_ctr.Text = cal.Value
+    Call destroy_datepicker
+    Call select_next_ctr(caller_ctr.parent, caller_ctr.TabIndex)
 End Sub
+Private Sub select_next_ctr(parent_ctr As MSForms.control, tab_index As Long)
+'will select the next control by tabindex
+Dim ctr As MSForms.control
+Dim dif As Long
+Dim c_name As String
 
+'large number
+    dif = 100000
+
+'loop controls
+    For Each ctr In parent_ctr.Controls
+        'check tabindex
+            If ctr.TabIndex > tab_index And ctr.TabIndex - tab_index < dif Then
+                'store dif and name
+                    dif = ctr.TabIndex - tab_index
+                    c_name = ctr.Name
+            End If
+        If dif = 1 Then Exit For
+    Next ctr
+
+'if a control is found:
+    If dif < 100000 Then
+        'carefull, some controls cannot be focussed
+            On Error Resume Next
+                parent_ctr.Controls(c_name).SetFocus
+            On Error GoTo 0
+    End If
+    
+End Sub
 
 Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
 If KeyCode = vbKeyEscape Then
@@ -42,42 +71,52 @@ End If
 End Sub
 
 Private Sub destroy_datepicker()
+Dim ctr As MSForms.control
+
 Me.datepicker_frame.Visible = False
+
 Set cal = Nothing
+Do While Me.datepicker_frame.Controls.Count > 0
+    Me.datepicker_frame.Controls.Remove (0)
+Loop
+
 'restore backcolor
 caller_ctr.BackColor = -2147483643
 
 End Sub
 Private Sub create_datepicker()
-'in this case, all controls that create the datepicker are on the multipage.
-'multipage behaves strangely if global position is calculated. Probably the
-'tabstrip that is not properly calculated.
 Set cal = New cCalendar
-Dim t As Double
-Dim l As Double
+Dim T As Double
+Dim L As Double
 Dim ctr As MSForms.control
 Set ctr = caller_ctr
-On Error Resume Next
-    Do Until ctr.Parent.Name = Me.Name
-        t = t + ctr.Top
-        l = l + ctr.Left
-        Set ctr = ctr.Parent
-    Loop
-On Error GoTo 0
-'add 15 to compensate for the tabstrip (see above)
-t = t + caller_ctr.Height + 15
 
-With Me.datepicker_frame
-    .Visible = True
-    .Top = t
-    .Left = l
-    .ZOrder (0)
-End With
+'calculate global position of the datepicker
+'(flush left and below the control)
+    T = ctr.Height
+    On Error Resume Next
+        Do While True
+            T = T + ctr.Top
+            L = L + ctr.Left
+            If ctr.parent.Name = Me.Name Then Exit Do
+            Set ctr = ctr.parent
+        Loop
+    On Error GoTo 0
+
+'position the container frame
+    With Me.datepicker_frame
+        .Visible = True
+        .Top = T
+        .Left = L
+        .ZOrder (0)
+    End With
+
 'set red color to control
-caller_ctr.BackColor = vbRed
+    caller_ctr.BackColor = vbRed
 
-cal.Today
-cal.Add_Calendar_into_Frame Me.datepicker_frame
+'build datepicker
+    cal.Add_Calendar_into_Frame Me.datepicker_frame
+
 End Sub
 
 
@@ -93,9 +132,70 @@ cancelflag = True
 Me.Hide
 End Sub
 
-Private Sub current_tresholds_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.current_tresholds_cb
+Private Sub datepicker_frame_Click()
+
+End Sub
+
+Private Sub dr_dbl_ob_Click()
+'double draught
+Dim T As Long
+'frame visible
+T = 66
+Me.draught_single_frame.Visible = False
+
+With Me.draught_double_frame
+    .Visible = True
+    .Top = T
+    .Left = 12
+    T = T + .Height + 3
+End With
+Me.Label3.Top = T + 6
+Me.TextBox3.Top = T
+
+T = T + 18
+Me.Label4.Top = T + 6
+Me.TextBox4.Top = T
+
+T = T + 18
+Me.Label5.Top = T + 6
+Me.TextBox5.Top = T
+
+T = T + 18
+Me.Label6.Top = T + 6
+Me.ship_types_cb.Top = T
+
+End Sub
+
+Private Sub dr_single_ob_Click()
+'single draught
+Dim T As Long
+'frame visible
+T = 66
+Me.draught_double_frame.Visible = False
+
+With Me.draught_single_frame
+    .Visible = True
+    .Top = T
+    .Left = 12
+    T = T + .Height + 3
+End With
+Me.Label3.Top = T
+Me.TextBox3.Top = T
+
+Me.Label3.Top = T + 6
+Me.TextBox3.Top = T
+
+T = T + 18
+Me.Label4.Top = T + 6
+Me.TextBox4.Top = T
+
+T = T + 18
+Me.Label5.Top = T + 6
+Me.TextBox5.Top = T
+
+T = T + 18
+Me.Label6.Top = T + 6
+Me.ship_types_cb.Top = T
 End Sub
 
 Private Sub eta_date_tb_Enter()
@@ -116,18 +216,9 @@ End If
 
 End Sub
 
-Private Sub hw_list_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.hw_list_cb
-End Sub
-
-Private Sub MultiPage1_Change()
-
-End Sub
-
-Private Sub route_lb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.route_lb
+Private Sub eta_time_tb_Enter()
+eta_time_tb.SelStart = 0
+eta_time_tb.SelLength = Len(eta_time_tb.Text)
 End Sub
 
 Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
@@ -137,11 +228,6 @@ End Sub
 
 Private Sub routes_cb_Change()
 Call proj.sail_plan_form_route_cb_exit
-End Sub
-
-Private Sub routes_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.routes_cb
 End Sub
 
 Private Sub rta_date_tb_Enter()
@@ -192,18 +278,8 @@ If Not input_mask_time(Me.rta_time_tb) Then
 End If
 End Sub
 
-Private Sub rta_tresholds_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.rta_tresholds_cb
-End Sub
-
 Private Sub ship_types_cb_Change()
 Call proj.sail_plan_form_ship_type_cb_change
-End Sub
-
-Private Sub ship_types_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.ship_types_cb
 End Sub
 
 Private Sub ships_cb_Change()
@@ -219,13 +295,9 @@ If KeyCode = vbKeyUp Or KeyCode = vbKeyDown Then
 End If
 End Sub
 
-Private Sub ships_cb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-    UnhookListScroll
-    HookListScroll Me, Me.ships_cb
-End Sub
 
 Private Sub TextBox2_Change()
-TextBox2.text = UCase(TextBox2.text)
+TextBox2.Text = UCase(TextBox2.Text)
 End Sub
 
 Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
@@ -278,8 +350,8 @@ Dim i As Long
     Next i
 
 'set minimum value in tbs
-    Me.window_pre_tb.text = Format(w0_min, "hh:nn")
-    Me.window_after_tb.text = Format(w1_min, "hh:nn")
+    Me.window_pre_tb.Text = Format(w0_min, "hh:nn")
+    Me.window_after_tb.Text = Format(w1_min, "hh:nn")
 
 'set or reset warning labels
     If w0_min <> w0_max Then
@@ -320,8 +392,6 @@ Private Sub window_after_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
     End If
     Call insert_windows_into_route_list
 End Sub
-
-
 
 Private Sub eta_time_tb_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 If Not input_mask_time(Me.eta_time_tb) Then
@@ -419,23 +489,27 @@ Me.current_after_cb.AddItem "voor"
 Me.current_after_cb.AddItem "na"
 Me.current_after_cb.Value = "na"
 
+Me.dr_single_ob.Value = True
+
+Me.MultiPage1.Value = 0
+
 End Sub
 Private Function input_mask_time(tb As MSForms.TextBox) As Boolean
 Dim ss() As String
 
 input_mask_time = True
 
-If tb.text Like "####" Then
+If tb.Text Like "####" Then
     'could be a time without seperator
     ReDim ss(0 To 1) As String
-    ss(0) = Left(tb.text, 2)
-    ss(1) = Right(tb.text, 2)
-ElseIf tb.text Like "##.##" Or tb.text Like "#.##" Then
-    ss = Split(tb.text, ".")
-ElseIf tb.text Like "##;##" Or tb.text Like "#;##" Then
-    ss = Split(tb.text, ";")
-ElseIf tb.text Like "##:##" Or tb.text Like "#:##" Then
-    ss = Split(tb.text, ":")
+    ss(0) = Left(tb.Text, 2)
+    ss(1) = Right(tb.Text, 2)
+ElseIf tb.Text Like "##.##" Or tb.Text Like "#.##" Then
+    ss = Split(tb.Text, ".")
+ElseIf tb.Text Like "##;##" Or tb.Text Like "#;##" Then
+    ss = Split(tb.Text, ";")
+ElseIf tb.Text Like "##:##" Or tb.Text Like "#:##" Then
+    ss = Split(tb.Text, ":")
 Else
     GoTo NotValid
 End If
@@ -443,7 +517,7 @@ End If
 If val(ss(0)) < 0 Or val(ss(0)) > 23 Then GoTo NotValid
 If val(ss(1)) < 0 Or val(ss(1)) > 59 Then GoTo NotValid
 
-tb.text = Format(ss(0), "00") & ":" & Format(ss(1), "00")
+tb.Text = Format(ss(0), "00") & ":" & Format(ss(1), "00")
 
 Exit Function
 
@@ -452,5 +526,5 @@ MsgBox "De ingevoerde tijd wordt niet herkend als valide tijdswaarde"
 input_mask_time = False
 tb.SetFocus
 tb.SelStart = 0
-tb.SelLength = Len(tb.text)
+tb.SelLength = Len(tb.Text)
 End Function

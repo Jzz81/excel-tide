@@ -1,5 +1,7 @@
 Attribute VB_Name = "stats_gui"
 Option Explicit
+Option Base 0
+Option Compare Text
 Option Private Module
 
 Public Sub show_dashboard()
@@ -100,7 +102,7 @@ Dim s As String
                 
                 'for endpoints
                     merge_and_format_cells _
-                                r:=.Range(.Cells(rw, clm), .Cells(rw, clm + 2)), _
+                                R:=.Range(.Cells(rw, clm), .Cells(rw, clm + 2)), _
                                 txt:="per eindpunt", _
                                 mode:=mode
                 'count endpoints and store in collection
@@ -122,7 +124,7 @@ Dim s As String
                 
                 'for startpoints
                     merge_and_format_cells _
-                                r:=.Range(.Cells(rw, clm + 5), .Cells(rw, clm + 7)), _
+                                R:=.Range(.Cells(rw, clm + 5), .Cells(rw, clm + 7)), _
                                 txt:="per startpunt", _
                                 mode:=mode
                 'count startpoints and store in collection
@@ -144,7 +146,7 @@ Dim s As String
                 
                 'for shiptypes
                     merge_and_format_cells _
-                                r:=.Range(.Cells(rw, clm + 10), .Cells(rw, clm + 12)), _
+                                R:=.Range(.Cells(rw, clm + 10), .Cells(rw, clm + 12)), _
                                 txt:="per scheepstype", _
                                 mode:=mode
                 'count ship_types and store in collection
@@ -401,9 +403,9 @@ With sh.Range(sh.Cells(rw, clm), sh.Cells(rw, clm + 12))
 End With
 
 End Sub
-Private Sub merge_and_format_cells(r As Range, txt As String, mode As Long)
+Private Sub merge_and_format_cells(R As Range, txt As String, mode As Long)
 
-With r
+With R
     .Merge
     .HorizontalAlignment = xlLeft
     If mode = 1 Then

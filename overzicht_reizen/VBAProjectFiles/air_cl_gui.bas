@@ -1,5 +1,7 @@
 Attribute VB_Name = "air_cl_gui"
 Option Explicit
+Option Base 0
+Option Compare Text
 Option Private Module
 
 Sub fill_cb()
@@ -37,14 +39,14 @@ clm = cnt.Object.ListIndex
 
 clm = 1 + clm * 3
 
-Call draw(clm)
+Call Draw(clm)
 
 exitsub:
 Set cnt = Nothing
 Set sh = Nothing
 
 End Sub
-Sub draw(clm As Long)
+Sub Draw(clm As Long)
 Dim X1 As Double
 Dim X2 As Double
 Dim Y1 As Double
