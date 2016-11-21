@@ -51,7 +51,7 @@ Private Sub treshold_cb_Click()
     If Not loading Then Call proj.routes_form_treshold_cb_change
 End Sub
 
-Private Sub tresholds_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+Private Sub tresholds_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal Y As Single)
     loading = True
     Call proj.routes_form_tresholds_lb_click
     loading = False

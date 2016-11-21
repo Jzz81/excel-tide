@@ -4,6 +4,22 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module to accomodate routines that enable mouse wheel scrolling in forms controls
+'code is an adaptation of the code originally written by Peter Thornton (https://social.msdn.microsoft.com/profile/peter%20thornton%20(excel%20mvp%202008-13)/?ws=usercard-mini)
+'adapted by Joos Dominicus (joos.dominicus@gmail.com)
+'for use in the TideWin_excel program
+
+'************
+'IN USERFORM:
+'************
+'Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+'     UnhookListScroll
+'End Sub
+'Private Sub CONTROL_NAME_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+''start the hook
+'    HookListScroll Me, Me.CONTROL_NAME
+'End Sub
+
 Private Type POINTAPI
      X As Long
      Y As Long
@@ -233,13 +249,3 @@ errH:
      UnhookListScroll
 End Function
 
-'************
-'IN USERFORM:
-'************
-'Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
-'     UnhookListScroll
-'End Sub
-'Private Sub CONTROL_NAME_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
-''start the hook
-'    HookListScroll Me, Me.CONTROL_NAME
-'End Sub

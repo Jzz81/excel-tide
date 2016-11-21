@@ -32,7 +32,7 @@ Call destroy_datepicker
 End Sub
 
 
-Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 If KeyCode = vbKeyEscape Then
     Call destroy_datepicker
 End If

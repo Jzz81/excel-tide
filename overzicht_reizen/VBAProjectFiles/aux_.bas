@@ -4,65 +4,15 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'aux_ module, to accomodate auxiliary routines (multi purpose module)
+'Written by Joos Dominicus (joos.dominicus@gmail.com)
+'as part of the TideWin_excel program
+
 #If VBA7 Then
     Public Declare PtrSafe Function GetTickCount Lib "kernel32" () As Long
 #Else
     Public Declare Function GetTickCount Lib "kernel32" () As Long
 #End If
-
-'Sub jzz()
-''to export a range to word
-''(for report making)
-'
-'Dim wdApp As Word.Application
-'Dim doc As Word.Document
-'
-'Dim sSheetName As String
-'Dim oRangeToCopy As Range
-'Dim oCht As Chart
-'
-'sSheetName = "overzicht reizen" ' worksheet to work on
-'Set oRangeToCopy = Range("$G$4:$S$33") ' range to be copied
-'
-'Set wdApp = New Word.Application
-'wdApp.Visible = True
-'Set doc = wdApp.Documents.Add
-'
-'oRangeToCopy.CopyPicture xlScreen, xlPicture 'xlbitmap
-'
-'wdApp.Selection.Paste
-'
-'Set doc = Nothing
-'Set wdApp = Nothing
-'
-'End Sub
-'Public Sub send_mail(body As String, subject As String, Optional attach_path As String)
-''sub that will send a mail message via outlook
-'Dim oApp As Outlook.Application
-'Dim msg As Outlook.MailItem
-'
-'Set oApp = New Outlook.Application
-'Set msg = oApp.CreateItem(olMailItem)
-'
-'With msg
-'    .to = "eplus@enigmaplus.eu"
-'    .subject = subject
-'    .body = body
-'    If attach_path <> vbNullString Then
-'        On Error Resume Next
-'        .Attachments.Add attach_path
-'        Do Until Err.Number = 0
-'            DoEvents
-'            Err.Clear
-'            .Attachments.Add attach_path
-'        Loop
-'        On Error GoTo 0
-'    End If
-'    .Display
-'End With
-'
-'
-'End Sub
 
 Public Sub output(outputstring As String, Optional linebreak As Boolean = True)
 'will output string

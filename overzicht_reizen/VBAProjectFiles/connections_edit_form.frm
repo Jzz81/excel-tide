@@ -30,7 +30,7 @@ Private Sub conn_lb_Click()
     Call proj.connection_form_lb_click
 End Sub
 
-Private Sub conn_lb_MouseMove(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+Private Sub conn_lb_MouseMove(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal Y As Single)
 'start the hook
     UnhookListScroll
     HookListScroll Me, Me.conn_lb

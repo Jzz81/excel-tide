@@ -5,6 +5,8 @@ Option Compare Text
 Option Private Module
 
 'routines to make list for maximum draught and tidal windows
+'Written by Joos Dominicus (joos.dominicus@gmail.com)
+'as part of the TideWin_excel program
 
 Public Sub lists_form_load(id)
 'load the make_list form
@@ -83,7 +85,7 @@ Public Sub lists_form_ok_btn_click()
 
 Dim hw_diff As Long
 Dim hw_lw As String
-
+Dim T As Long
 With make_lists_form
     'validate inputs
         If .date_0_tb.Value = vbNullString Then
@@ -125,6 +127,7 @@ With make_lists_form
     'hide the form
         .Hide
     'calculate
+    T = GetTickCount
     If .type_maxT_ob Then
         Call lists_maximum_draught_list(.sail_plan_id, _
                                         start_date:=CDate(.date_0_tb), _
@@ -148,6 +151,7 @@ With make_lists_form
                                         draught_range_end:=CLng(Replace(.maxT_tb.Value, ".", ",")), _
                                         list_name:=.list_name_tb)
     End If
+    Debug.Print "List calculation took " & GetTickCount - T & " ms"
     'update the list
         Call ws_gui.build_sail_plan_list
         Call ws_gui.select_sail_plan(.sail_plan_id)
@@ -163,7 +167,7 @@ End Sub
 '********************
 Private Function create_max_draught_workbook(name_of_list As String, _
                                         start_date As Date, _
-                                        end_date As String) As Workbook
+                                        end_date As Date) As Workbook
 'will create and return a workbook
 Dim sh As Worksheet
 
@@ -173,9 +177,9 @@ Set sh = create_max_draught_workbook.Worksheets(1)
 With sh
     .Cells(1, 1) = name_of_list
     .Cells(2, 1) = "van:"
-    .Cells(2, 2) = Format(start_date, "dd-mm-yyyy")
+    .Cells(2, 2) = start_date
     .Cells(3, 1) = "tot en met:"
-    .Cells(3, 2) = Format(end_date, "dd-mm-yyyy")
+    .Cells(3, 2) = end_date
     
     .Range(.Cells(2, 4), .Cells(2, 12)).Merge
     .Range(.Cells(2, 4), .Cells(2, 12)).HorizontalAlignment = xlLeft
@@ -234,10 +238,10 @@ Dim rw As Long
 
 'insert selected RTA treshold
     sp_conn.Execute "UPDATE sail_plans SET rta_treshold = FALSE" & _
-        " WHERE id = '" & sail_plan_id & "';"
+        " WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     sp_conn.Execute "UPDATE sail_plans SET rta_treshold = TRUE" & _
         " WHERE id = '" & sail_plan_id & "'" & _
-        " AND treshold_name = '" & rta_treshold & "';"
+        " AND treshold_name = '" & rta_treshold & "';", adExecuteNoRecords
 
 'loop hw or lw values within the period
     'construct query
@@ -268,7 +272,7 @@ Dim rw As Long
         'insert RTA into sail plan. Add hw_diff / 1440, because hw_diff is in minutes and dates are in days. 1440 is 60 * 24.
             sp_conn.Execute "UPDATE sail_plans SET rta = '" & _
                 Format(dt + (hw_diff / 1440), "dd-mm-yyyy hh:nn:ss") & _
-                "' WHERE id = '" & sail_plan_id & "' AND rta_treshold = TRUE;"
+                "' WHERE id = '" & sail_plan_id & "' AND rta_treshold = TRUE;", adExecuteNoRecords
         'parse injected rta
             Call proj.sail_plan_db_fill_in_rta(sail_plan_id)
         'calculate max

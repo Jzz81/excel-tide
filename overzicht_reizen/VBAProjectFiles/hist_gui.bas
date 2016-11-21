@@ -4,6 +4,11 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module hist_gui, to accomodate all routines required by the history sheets (gui)
+'Written by Joos Dominicus (joos.dominicus@gmail.com)
+'as part of the TideWin_excel program
+
+
 Dim Drawing As Boolean
 
 '*************
@@ -36,13 +41,39 @@ If arch_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
-'select all sail plans
-qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
-    & "treshold_index = 0 AND " _
-    & "route_ingoing = TRUE AND " _
-    & "route_shift = FALSE " _
-    & "ORDER BY local_eta ASC;"
+'select sail plans (last 2 weeks)
+qstr = "SELECT " _
+            & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+        & "FROM " _
+            & "sail_plans " _
+        & "WHERE " _
+            & "local_eta BETWEEN #" & Format(Now - 14, "m/d/yyyy hh:nn:ss") & "# AND #" & Format(Now, "m/d/yyyy hh:nn:ss") & "# AND " _
+            & "treshold_index = 0 AND " _
+            & "route_ingoing = TRUE AND " _
+            & "route_shift = FALSE " _
+        & "ORDER BY " _
+            & "local_eta ASC;"
 rst.Open qstr
+'check if more than 50 sail plans are selected. If not, select last 50
+If rst.RecordCount < 50 Then
+    rst.Close
+    qstr = "SELECT " _
+                & "* " _
+            & "FROM " _
+                & "(SELECT TOP 50 " _
+                    & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+                & "FROM " _
+                    & "sail_plans " _
+                & "WHERE " _
+                    & "treshold_index = 0 AND " _
+                    & "route_ingoing = TRUE AND " _
+                    & "route_shift = FALSE " _
+                & "ORDER BY " _
+                    & "local_eta DESC) SQ " _
+            & "ORDER BY " _
+                & "local_eta ASC;"
+    rst.Open qstr
+End If
 
 Drawing = True
 
@@ -98,13 +129,39 @@ If arch_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
-'select all sail plans
-qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
-    & "treshold_index = 0 AND " _
-    & "route_ingoing = FALSE AND " _
-    & "route_shift = FALSE " _
-    & "ORDER BY local_eta ASC;"
+'select sail plans (last 2 weeks)
+qstr = "SELECT " _
+            & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+        & "FROM " _
+            & "sail_plans " _
+        & "WHERE " _
+            & "local_eta BETWEEN #" & Format(Now - 14, "m/d/yyyy hh:nn:ss") & "# AND #" & Format(Now, "m/d/yyyy hh:nn:ss") & "# AND " _
+            & "treshold_index = 0 AND " _
+            & "route_ingoing = FALSE AND " _
+            & "route_shift = FALSE " _
+        & "ORDER BY " _
+            & "local_eta ASC;"
 rst.Open qstr
+'check if more than 50 sail plans are selected. If not, select last 50
+If rst.RecordCount < 50 Then
+    rst.Close
+    qstr = "SELECT " _
+                & "* " _
+            & "FROM " _
+                & "(SELECT TOP 50 " _
+                    & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+                & "FROM " _
+                    & "sail_plans " _
+                & "WHERE " _
+                    & "treshold_index = 0 AND " _
+                    & "route_ingoing = FALSE AND " _
+                    & "route_shift = FALSE " _
+                & "ORDER BY " _
+                    & "local_eta DESC) SQ " _
+            & "ORDER BY " _
+                & "local_eta ASC;"
+    rst.Open qstr
+End If
 
 Drawing = True
 
@@ -159,12 +216,37 @@ If arch_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST(arch_conn)
-'select all sail plans
-qstr = "SELECT TOP 50 * FROM sail_plans WHERE " _
-    & "treshold_index = 0 AND " _
-    & "route_shift = TRUE " _
-    & "ORDER BY local_eta ASC;"
+'select sail plans (last 2 weeks)
+qstr = "SELECT " _
+            & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+        & "FROM " _
+            & "sail_plans " _
+        & "WHERE " _
+            & "local_eta BETWEEN #" & Format(Now - 14, "m/d/yyyy hh:nn:ss") & "# AND #" & Format(Now, "m/d/yyyy hh:nn:ss") & "# AND " _
+            & "treshold_index = 0 AND " _
+            & "route_shift = TRUE " _
+        & "ORDER BY " _
+            & "local_eta ASC;"
 rst.Open qstr
+'check if more than 50 sail plans are selected. If not, select last 50
+If rst.RecordCount < 50 Then
+    rst.Close
+    qstr = "SELECT " _
+                & "* " _
+            & "FROM " _
+                & "(SELECT TOP 50 " _
+                    & "id, ship_naam, route_naam, ship_loa, ship_draught, local_eta " _
+                & "FROM " _
+                    & "sail_plans " _
+                & "WHERE " _
+                    & "treshold_index = 0 AND " _
+                    & "route_shift = TRUE " _
+                & "ORDER BY " _
+                    & "local_eta DESC) SQ " _
+            & "ORDER BY " _
+                & "local_eta ASC;"
+    rst.Open qstr
+End If
 
 Drawing = True
 
@@ -216,7 +298,7 @@ Private Sub add_sail_plan(ByRef sh As Worksheet, _
 Dim rw As Long
 
 rw = 3
-sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Insert Shift:=xlDown
+sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6)).Insert shift:=xlDown
 
 sh.Cells(rw, 1) = id
 sh.Cells(rw, 2) = naam
@@ -952,7 +1034,7 @@ End Sub
 Private Sub restore_header(ByRef sh As Worksheet, txt As String)
 With sh
     .Cells(1, 2) = txt
-    .Cells(1, 3) = "(laatste 50 vaarplannen)"
+    .Cells(1, 3) = "(laatste 2 weken of 50 vaarplannen)"
     .Cells(2, 2) = "naam"
     .Cells(2, 3) = "reis"
     .Cells(2, 4) = "loa"

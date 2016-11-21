@@ -4,6 +4,11 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module 'Sqlite3', holds all routines to connect to the
+'sqlite3 dll's
+'code aquired from https://github.com/govert/SQLiteForExcel
+'and used unaltered.
+
 ' Notes:
 ' Microsoft uses UTF-16, little endian byte order.
 

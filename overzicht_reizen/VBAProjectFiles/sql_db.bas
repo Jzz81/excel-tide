@@ -4,6 +4,11 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module sql_db, holds all routines to interact with the tidal data database
+'(database stored as accdb, used by TideWin_excel in Sqlite3)
+'Written by Joos Dominicus (joos.dominicus@gmail.com)
+'as part of the TideWin_excel program
+
 Const db_location As String = ":memory:"
 
 Dim tresholds_collection As Collection
@@ -129,10 +134,16 @@ For i = 1 To c.Count
     s = c(i)
     FeedbackForm.FeedbackLBL = "Gegevens laden van: " & s & " (" & i & "\" & c.Count & ")"
     'make sql string to retreive all data in the table, ordered by date
-    If HW Then
+    'TODO: remove this temporary solution. As from 2017, the database will hold
+    'only 'dt' field names.
+    If CALCULATION_YEAR >= 2017 Then
         qstr = "SELECT * FROM " & s & " ORDER BY dt ASC;"
     Else
-        qstr = "SELECT * FROM " & s & " ORDER BY DateTime ASC;"
+        If HW Then
+            qstr = "SELECT * FROM " & s & " ORDER BY dt ASC;"
+        Else
+            qstr = "SELECT * FROM " & s & " ORDER BY DateTime ASC;"
+        End If
     End If
     
     v = tidal_conn.Execute(qstr).GetRows
@@ -232,7 +243,7 @@ Do Until i >= i_max
         'add formatting to the julian date, because sqlite does not seem to accept
         'round numbers; it let out every noon value (julian day being a round number)
         qstr2 = qstr2 & "('" & Format(SQLite3.ToJulianDay(CDate(v(0, i))), "#.00000000") & "', '" & _
-            Format(v(1, i), "#.00") & "'), "
+            Format(v(1, i), "000.00") & "'), "
         'if 490 data rows has been processed, stop adding
         If i Mod 490 = 0 And i > 0 Then
             i = i + 1

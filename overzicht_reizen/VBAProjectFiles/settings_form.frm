@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} settings_form 
    Caption         =   "Programma instellingen"
-   ClientHeight    =   6570
+   ClientHeight    =   7275
    ClientLeft      =   45
    ClientTop       =   375
    ClientWidth     =   5595
@@ -25,6 +25,9 @@ Private Sub CommandButton2_Click()
     unload Me
 End Sub
 
+Private Sub path_btn_admittance_template_Click()
+    Me.path_tb_admittance_template.Value = aux_.get_single_file("Selecteer het sjabloon")
+End Sub
 Private Sub path_btn_hw_data_Click()
     Me.path_tb_hw_data.Value = aux_.get_single_file("Selecteer de database")
 End Sub

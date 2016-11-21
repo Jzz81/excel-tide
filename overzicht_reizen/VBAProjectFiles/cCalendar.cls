@@ -24,7 +24,7 @@ Public Event Click()
 Public Event DblClick()
 Public Event KeyDown( _
     ByVal KeyCode As MSForms.ReturnInteger, _
-    ByVal Shift As Integer)
+    ByVal shift As Integer)
 
 '# Members for Main Object
 Private WithEvents CBxY As MSForms.ComboBox
@@ -1043,7 +1043,7 @@ End Sub
 
 Private Sub CmB_KeyDown( _
     ByVal KeyCode As MSForms.ReturnInteger, _
-    ByVal Shift As Integer)
+    ByVal shift As Integer)
     
     Dim newDate As Date
 
@@ -1078,7 +1078,7 @@ Private Sub CmB_KeyDown( _
         Main.Value = newDate
         KeyCode = 0
     Else
-        Call Main.Event_KeyDown(KeyCode, Shift)
+        Call Main.Event_KeyDown(KeyCode, shift)
     End If
 End Sub
 
@@ -1326,9 +1326,9 @@ End Sub
 
 Public Sub Event_KeyDown( _
     ByVal KeyCode As MSForms.ReturnInteger, _
-    ByVal Shift As Integer)
+    ByVal shift As Integer)
     
-    RaiseEvent KeyDown(KeyCode, Shift)
+    RaiseEvent KeyDown(KeyCode, shift)
 End Sub
 
 Private Sub Refresh_Properities()

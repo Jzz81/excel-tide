@@ -37,6 +37,7 @@ ElseIf k_code >= 96 And k_code <= 105 Then
     validate_keycode = k_code
 'comma
 ElseIf k_code = 188 Then
+    'use point instead
     validate_keycode = 190
 'tab
 ElseIf k_code = 9 Then
@@ -58,16 +59,16 @@ Else
 End If
 
 End Function
-Private Sub TextBox2_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub TextBox2_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 KeyCode = validate_keycode(CLng(KeyCode))
 End Sub
-Private Sub TextBox3_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub TextBox3_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 KeyCode = validate_keycode(CLng(KeyCode))
 End Sub
-Private Sub TextBox4_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub TextBox4_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 KeyCode = validate_keycode(CLng(KeyCode))
 End Sub
-Private Sub TextBox5_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub TextBox5_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 KeyCode = validate_keycode(CLng(KeyCode))
 End Sub
 

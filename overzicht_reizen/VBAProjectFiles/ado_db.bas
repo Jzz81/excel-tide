@@ -4,6 +4,10 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module to accomodate all ADODB connections and related routines
+'Written by Joos Dominicus (joos.dominicus@gmail.com)
+'as part of the TideWin_excel program
+
 Public sp_conn As ADODB.Connection
 Public arch_conn As ADODB.Connection
 Public tidal_conn As ADODB.Connection
@@ -95,7 +99,7 @@ End If
 
 Y = CALCULATION_YEAR
 
-'check if database exists
+'check if database exists and is valid
     If Dir(Replace(s, "<YEAR>", Y)) = vbNullString Then
         'database does not exist
         MsgBox "Er is geen database gevonden voor de getijdegegevens. " _
@@ -206,7 +210,7 @@ If rst.RecordCount > 0 Then
                     & "en niet gerepareerd kon worden. Dit vaarplan wordt verwijderd."
                 id = rst!id
                 rst.Close
-                sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';")
+                sp_conn.Execute ("DELETE * FROM sail_plans WHERE id = '" & id & "';"), adExecuteNoRecords
                 rst.Open qstr
                 GoTo BackLoop
         End If
@@ -289,31 +293,31 @@ End If
 
 'fill route_naam
 If route_naam <> vbNullString Then
-    sp_conn.Execute "UPDATE sail_plans SET route_naam = '" & route_naam & "' WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET route_naam = '" & route_naam & "' WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 End If
 'fill ship_naam
 If ship_naam <> vbNullString Then
-    sp_conn.Execute "UPDATE sail_plans SET ship_naam = '" & ship_naam & "' WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_naam = '" & ship_naam & "' WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 End If
 
 'fill loa
 If loa > 0 Then
-    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & loa & " WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & loa & " WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 Else
     'bogus value (1)
-    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & 1 & " WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_loa = " & 1 & " WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 End If
 'fill boa
 If boa > 0 Then
-    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & boa & " WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & boa & " WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 Else
     'bogus value (1)
-    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & 1 & " WHERE id = '" & sail_plan_id & "';"
+    sp_conn.Execute "UPDATE sail_plans SET ship_boa = " & 1 & " WHERE id = '" & sail_plan_id & "';", adExecuteNoRecords
     repair_sail_plan = True
 End If
     
@@ -324,22 +328,22 @@ If rst.RecordCount > 0 Then
     repair_sail_plan = True
     rst.Close
     'bogus value (1)
-    sp_conn.Execute "UPDATE sail_plans SET ship_draught = " & 1 & " WHERE id = " & sail_plan_id & ";"
+    sp_conn.Execute "UPDATE sail_plans SET ship_draught = " & 1 & " WHERE id = " & sail_plan_id & ";", adExecuteNoRecords
 Else
     rst.Close
 End If
 
 'query for empty eta
-qstr = "SELECT * FROM sail_plans WHERE local_eta Is Null AND id = '" & sail_plan_id & "';"
+qstr = "SELECT id FROM sail_plans WHERE local_eta Is Null AND id = '" & sail_plan_id & "';"
 rst.Open qstr
 If rst.RecordCount > 0 Then
     repair_sail_plan = True
     rst.Close
-    qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+    qstr = "SELECT local_eta FROM sail_plans WHERE id = '" & sail_plan_id & "';"
     rst.Open qstr
     'fill in bogus (but viable) eta values
     Do Until rst.EOF
-        rst!local_eta = DateSerial(Year(Now) - 1, 1, 1) + TimeSerial(0, 10 * i, 0)
+        rst(0) = DateSerial(Year(Now) - 1, 1, 1) + TimeSerial(0, 10 * i, 0)
         i = i + 1
         rst.MoveNext
     Loop
@@ -384,10 +388,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM ships WHERE id = " & id & ";"
+qstr = "SELECT loa FROM ships WHERE id = " & id & ";"
 
 rst.Open qstr
-ship_loa = rst!loa
+ship_loa = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -406,10 +410,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM deviations WHERE Id = " & id & ";"
+qstr = "SELECT tidal_data_point FROM deviations WHERE id = " & id & ";"
 
 rst.Open qstr
-deviations_tidal_point = rst!tidal_data_point
+deviations_tidal_point = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -428,10 +432,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & T & " WHERE naam = '" & n & "';"
+qstr = "SELECT id FROM " & T & " WHERE naam = '" & n & "';"
 rst.Open qstr
 
-get_table_id_from_name = rst!id
+get_table_id_from_name = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -450,10 +454,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & T & " WHERE id = " & id & ";"
+qstr = "SELECT naam FROM " & T & " WHERE id = " & id & ";"
 rst.Open qstr
 
-get_table_name_from_id = rst!naam
+get_table_name_from_id = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -472,10 +476,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM connections WHERE id = " & id & ";"
+qstr = "SELECT distance FROM connections WHERE id = " & id & ";"
 rst.Open qstr
 
-get_distance_of_connection = rst!distance
+get_distance_of_connection = rst(0)
 get_distance_of_connection = Round(get_distance_of_connection, 2)
 rst.Close
 Set rst = Nothing
@@ -494,9 +498,9 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM tresholds WHERE naam = '" & treshold_name & "';"
+qstr = "SELECT log_in_statistics FROM tresholds WHERE naam = '" & treshold_name & "';"
 rst.Open qstr
-get_treshold_logging = rst!log_in_statistics
+get_treshold_logging = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -516,10 +520,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM tresholds WHERE naam = '" & treshold_name & "';"
+qstr = "SELECT draught_zone FROM tresholds WHERE naam = '" & treshold_name & "';"
 rst.Open qstr
     
-get_treshold_draught_zone = rst!draught_zone
+get_treshold_draught_zone = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -538,10 +542,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM tresholds WHERE id = " & treshold_id & ";"
+qstr = "SELECT depth_strive FROM tresholds WHERE id = " & treshold_id & ";"
 rst.Open qstr
     
-get_treshold_strive_depth = rst!depth_strive
+get_treshold_strive_depth = rst(0)
 
 rst.Close
 Set rst = Nothing
@@ -561,12 +565,12 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+qstr = "SELECT ship_draught FROM sail_plans WHERE id = '" & sail_plan_id & "';"
 rst.Open qstr
     
-d = rst!ship_draught
+d = rst(0)
 Do Until rst.EOF
-    If rst!ship_draught <> d Then
+    If rst(0) <> d Then
         get_sail_plan_double_draught = True
         Exit Do
     End If
@@ -593,15 +597,15 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+qstr = "SELECT ship_draught, treshold_name FROM sail_plans WHERE id = '" & sail_plan_id & "';"
 rst.Open qstr
     
 'generate seperated string
     Do Until rst.EOF
-        If ado_db.get_treshold_draught_zone(rst!treshold_name) = 1 Then
-            d_sea = rst!ship_draught
+        If ado_db.get_treshold_draught_zone(rst(1)) = 1 Then
+            d_sea = rst(0)
         Else
-            d_river = rst!ship_draught
+            d_river = rst(0)
         End If
         If d_sea <> 0 And d_river <> 0 Then Exit Do
         rst.MoveNext
@@ -637,14 +641,14 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+qstr = "SELECT rta, rta_treshold, treshold_name FROM sail_plans WHERE id = '" & sail_plan_id & "';"
 rst.Open qstr
     
 'find rta treshold
     Do Until rst.EOF
-        If rst!rta_treshold = True Then
-            rta_tr = rst!treshold_name
-            rta = rst!rta
+        If rst(1) = True Then
+            rta_tr = rst(2)
+            rta = rst(0)
             get_sail_plan_rta = True
             Exit Do
         End If
@@ -668,7 +672,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+qstr = "SELECT TOP 1 id FROM sail_plans WHERE id = '" & sail_plan_id & "';"
 rst.Open qstr
 
 If rst.RecordCount > 0 Then sail_plan_id_exists = True
@@ -693,10 +697,10 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT TOP 1 * FROM sail_plans WHERE id = '" & sail_plan_id & "';"
+qstr = "SELECT TOP 1 ship_speeds FROM sail_plans WHERE id = '" & sail_plan_id & "';"
 rst.Open qstr
 
-ss = Split(rst!ship_speeds, ";")
+ss = Split(rst(0), ";")
 
 rst.Close
 Set rst = Nothing
@@ -727,7 +731,7 @@ If sp_conn Is Nothing Then
 End If
 Set rst = ado_db.ADO_RST
 
-qstr = "SELECT * FROM sail_plans WHERE route_naam = '" & route_name & "';"
+qstr = "SELECT TOP 1 id FROM sail_plans WHERE route_naam = '" & route_name & "';"
 rst.Open qstr
 
 If rst.RecordCount > 0 Then check_route_in_use = True

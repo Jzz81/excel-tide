@@ -4,6 +4,11 @@ Option Base 0
 Option Compare Text
 Option Private Module
 
+'module DST_GMT, to convert datetime values to and from GMT.
+'code found on 'http://www.vbaexpress.com/kb/getarticle.php?kb_id=813' and
+'adapted by Joos Dominicus (joos.dominicus@gmail.com)
+'for use in the TideWin_excel program
+
  ' For more on DST/Summer Time: http://webexhibits.org/daylightsaving/
  
  ' ISO country codes: http://www.iso.org/iso/en/prods-services/iso3166ma/02iso-3166-code-lists/list-en1.html

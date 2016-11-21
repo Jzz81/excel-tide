@@ -63,7 +63,7 @@ Dim c_name As String
     
 End Sub
 
-Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub cal_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 If KeyCode = vbKeyEscape Then
     Call destroy_datepicker
 End If
@@ -209,7 +209,7 @@ If Not cal Is Nothing Then Call destroy_datepicker
 
 End Sub
 
-Private Sub eta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub eta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 If KeyCode = vbKeyEscape Then
     If Not cal Is Nothing Then Call destroy_datepicker
 End If
@@ -221,7 +221,7 @@ eta_time_tb.SelStart = 0
 eta_time_tb.SelLength = Len(eta_time_tb.Text)
 End Sub
 
-Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
+Private Sub route_lb_MouseUp(ByVal Button As Integer, ByVal shift As Integer, ByVal X As Single, ByVal Y As Single)
 Call proj.sail_plan_form_route_lb_click
 
 End Sub
@@ -241,7 +241,7 @@ If Not cal Is Nothing Then Call destroy_datepicker
 
 End Sub
 
-Private Sub rta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub rta_date_tb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 If KeyCode = vbKeyEscape Then
     If Not cal Is Nothing Then Call destroy_datepicker
 End If
@@ -289,7 +289,7 @@ Call proj.sail_plan_form_ship_cb_change
 
 End Sub
 
-Private Sub ships_cb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
+Private Sub ships_cb_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal shift As Integer)
 If KeyCode = vbKeyUp Or KeyCode = vbKeyDown Then
     KeyCode = 0
 End If
