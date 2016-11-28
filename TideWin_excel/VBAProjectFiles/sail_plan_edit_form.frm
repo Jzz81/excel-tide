@@ -454,6 +454,9 @@ Me.routes_cb.ColumnWidths = ";0"
 Me.rta_tresholds_cb.ColumnCount = 2
 Me.rta_tresholds_cb.ColumnWidths = ";0"
 
+Me.current_tresholds_cb.ColumnCount = 2
+Me.current_tresholds_cb.ColumnWidths = ";0"
+
 Me.ships_cb.ColumnCount = 8
 Me.ships_cb.ColumnWidths = ";0;0;0;0;0;0;0"
 

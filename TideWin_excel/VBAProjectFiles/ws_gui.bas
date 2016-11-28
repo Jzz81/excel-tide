@@ -59,13 +59,23 @@ Private Sub admittance_open_and_fill_template(ship_name As String, _
                                                 ingoing As Boolean, _
                                                 shift As Boolean)
 'will open a document based on the template, and fill the appropriate text fields
-Dim wdApp As Word.Application
-Dim doc As Word.Document
+Dim objApp As Object
+Dim doc As Object
 
-Set wdApp = New Word.Application
-wdApp.Visible = True
-wdApp.Activate
-Set doc = wdApp.Documents.Add(ADMITTANCE_TEMPLATE_PATH)
+'See if Word is already running
+On Error Resume Next
+Set objApp = GetObject(, "Word.Application")
+
+If Err.Number <> 0 Then
+    'Launch a new instance of Word
+    Err.Clear
+    On Error GoTo 0
+    Set objApp = CreateObject("Word.Application")
+    objApp.Visible = True 'Make the application visible to the user (if wanted)
+End If
+
+objApp.Activate
+Set doc = objApp.Documents.Add(ADMITTANCE_TEMPLATE_PATH)
 
 On Error Resume Next
 'fill in the appropriate fields
@@ -86,14 +96,14 @@ On Error Resume Next
 On Error GoTo 0
 
 Set doc = Nothing
-Set wdApp = Nothing
+Set objApp = Nothing
 
 End Sub
 Public Sub right_mouse_generate_report()
 'will generate a report in Word about this sail plan
-Dim wdApp As Word.Application
-Dim doc As Word.Document
-Dim tbl As Word.table
+Dim wdApp As Object
+Dim doc As Object
+Dim tbl As Object
 
 Dim id As Long
 Dim connect_here As Boolean
@@ -106,7 +116,7 @@ Dim ss() As String
 Dim ss1() As String
 Dim has_restrictions As Boolean
 Dim i As Long
-Dim wd_R As Word.Range
+Dim wd_R As Object
 
 Dim R As Range
 
@@ -128,14 +138,24 @@ Dim R As Range
 'retreive sail plan
     rst.Open qstr
 'setup a new word document
-    Set wdApp = New Word.Application
-    wdApp.Visible = True
-    Set doc = wdApp.Documents.Add(documenttype:=wdNewBlankDocument)
-    doc.PageSetup.Orientation = wdOrientLandscape
+'See if Word is already running
+    On Error Resume Next
+    Set wdApp = GetObject(, "Word.Application")
+    
+    If Err.Number <> 0 Then
+        'Launch a new instance of Word
+        Err.Clear
+        On Error GoTo 0
+        Set wdApp = CreateObject("Word.Application")
+        wdApp.Visible = True 'Make the application visible to the user (if wanted)
+    End If
+    Set doc = wdApp.Documents.Add(documenttype:=0) '0 = wdNewBlankDocument
+    doc.PageSetup.Orientation = 1 '1 = wdOrientLandscape
 
 'Fill in Header
     With doc.Sections(1)
-        .Headers(wdHeaderFooterPrimary).Range.Text = _
+        '1 = 'wdHeaderFooterPrimary'
+        .Headers(1).Range.Text = _
             "GNA Vaarplan voor: " & rst!ship_naam _
             & vbTab & vbTab & "Route naam: " & rst!route_naam _
             & Chr(10) & "Lengte: " & rst!ship_loa _
@@ -147,7 +167,7 @@ Dim R As Range
 
 Set wd_R = doc.Range
 wd_R.InsertAfter "Tijd-weg diagram"
-wd_R.Collapse Direction:=wdCollapseEnd
+wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
 
 'get drawing range
     Set R = find_drawing_range
@@ -156,13 +176,13 @@ wd_R.Collapse Direction:=wdCollapseEnd
 'paste picture into doc
     wd_R.Paste
 
-wd_R.Collapse Direction:=wdCollapseEnd
+wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
 
-wd_R.InsertBreak Type:=wdPageBreak
+wd_R.InsertBreak Type:=7 '7 = wdPageBreak
 
 wd_R.InsertAfter "Tabel met tijpoorten"
     
-wd_R.Collapse Direction:=wdCollapseEnd
+wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
 
 'Insert windows table
     Set tbl = doc.tables.Add(Range:=wd_R, numrows:=CLng(rst.RecordCount) + 1, numcolumns:=5)
@@ -213,10 +233,10 @@ wd_R.Collapse Direction:=wdCollapseEnd
     
 're-set range and collapse
     Set wd_R = doc.Range
-    wd_R.Collapse Direction:=wdCollapseEnd
-    wd_R.InsertBreak Type:=wdPageBreak
+    wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
+    wd_R.InsertBreak Type:=7 '7 = wdPageBreak
     wd_R.InsertAfter "Tabel met gedetailleerde gegevens"
-    wd_R.Collapse Direction:=wdCollapseEnd
+    wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
     
 'Insert details table
     Set tbl = doc.tables.Add(Range:=wd_R, numrows:=CLng(rst.RecordCount) + 1, numcolumns:=9)
@@ -1228,7 +1248,10 @@ With sh
         dev_string = deviations_retreive_devs_from_db( _
                 jd0:=jd0, _
                 jd1:=jd1, _
-                tidal_data_point:=dev_name)
+                tidal_data_point:=ado_db.get_table_name_from_id( _
+                                id:=CLng(devs(i)), _
+                                T:="deviations", _
+                                column_name:="tidal_data_point"))
         ss = Split(dev_string, ";")
         rw_add = 1
         For ii = 0 To UBound(ss) Step 3

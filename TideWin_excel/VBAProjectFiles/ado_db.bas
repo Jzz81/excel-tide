@@ -443,26 +443,34 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function get_table_name_from_id(ByVal id As Long, ByVal T As String) As String
-'get tidal_point_name from the database based on the id
+Public Function get_table_name_from_id(ByVal id As Long, ByVal T As String, Optional column_name As String = vbNullString) As String
+'get column value ('naam' as default) for id 'id' in table 'T'
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 
-If sp_conn Is Nothing Then
-    Call ado_db.connect_sp_ADO
-    connect_here = True
-End If
-Set rst = ado_db.ADO_RST
-qstr = "SELECT naam FROM " & T & " WHERE id = " & id & ";"
-rst.Open qstr
+'connect to db and setup recordset
+    If sp_conn Is Nothing Then
+        Call ado_db.connect_sp_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST
 
-get_table_name_from_id = rst(0)
+'use default if no value is given
+    If column_name = vbNullString Then column_name = "naam"
 
-rst.Close
-Set rst = Nothing
+'construct query and open recordset
+    qstr = "SELECT " & column_name & " FROM " & T & " WHERE id = " & id & ";"
+    rst.Open qstr
 
-If connect_here Then Call ado_db.disconnect_sp_ADO
+'return value
+    get_table_name_from_id = rst(0)
+
+'disconnect and close
+    rst.Close
+    Set rst = Nothing
+    
+    If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
 Public Function get_distance_of_connection(id As Long) As Double

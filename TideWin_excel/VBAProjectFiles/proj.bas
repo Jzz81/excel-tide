@@ -70,7 +70,6 @@ Sub make_admittance(control As IRibbonControl)
     Call ws_gui.right_mouse_make_admittance
 End Sub
 
-
 Public Sub open_options(control As IRibbonControl)
 'Callback for show_what_button onAction
     Call settings_form_load
@@ -2540,7 +2539,7 @@ With sail_plan_edit_form
                     rst3!rta = DST_GMT.ConvertToGMT(CDate(.rta_date_tb) + CDate(.rta_time_tb))
                 End If
             ElseIf .current_ob Then
-                If rst3!treshold_name = .current_tresholds_cb.Value Then
+                If val(rst3!treshold_id) = val(.current_tresholds_cb.List(.current_tresholds_cb.ListIndex, 1)) Then
                     rst3!current_window = True
                     'positive value is after the hw, negative is before
                     rst3!current_window_pre = CDate(.current_before_tb)
@@ -2852,10 +2851,16 @@ With sail_plan_edit_form
         s = ado_db.get_table_name_from_id(rst!treshold_id, "tresholds")
         .route_lb.List(.route_lb.ListCount - 1, 0) = s
         'add name to the cbs
-        .current_tresholds_cb.AddItem s
-        .rta_tresholds_cb.AddItem
-        .rta_tresholds_cb.List(.rta_tresholds_cb.ListCount - 1, 0) = s
-        .rta_tresholds_cb.List(.rta_tresholds_cb.ListCount - 1, 1) = rst!treshold_id
+        With .current_tresholds_cb
+            .AddItem
+            .List(.ListCount - 1, 0) = s
+            .List(.ListCount - 1, 1) = rst!treshold_id
+        End With
+        With .rta_tresholds_cb
+            .AddItem
+            .List(.ListCount - 1, 0) = s
+            .List(.ListCount - 1, 1) = rst!treshold_id
+        End With
         
         'UKC value and unit
         .route_lb.List(.route_lb.ListCount - 1, 1) = rst!UKC_value & rst!UKC_unit
