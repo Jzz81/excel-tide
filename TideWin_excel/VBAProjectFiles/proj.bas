@@ -325,6 +325,13 @@ With search_voyage_form
                 & "treshold_index = 0 " _
                 & "ORDER BY local_eta ASC;"
             rst.Open qstr
+        'check for records
+            If rst.BOF And rst.EOF Then
+                'database is empty, quit
+                MsgBox "Er zijn geen gearchiveerde reizen gevonden om weer te geven"
+                rst.Close
+                GoTo endsub
+            End If
         'store and fill in dates
             .extreme_dt_start = rst!local_eta
             .dt_start_tb.Text = Format(.extreme_dt_start, "dd-mm-yyyy")
@@ -371,6 +378,11 @@ With search_voyage_form
         Call search_form_show_results
         .Show
 End With
+
+endsub:
+
+Set rst = Nothing
+If connect_here Then Call ado_db.disconnect_arch_ADO
 
 End Sub
 
@@ -484,8 +496,30 @@ End Function
 'stats form routines
 '*******************
 Public Sub stats_form_load()
-Load stats_form
-stats_form.Show
+Dim rst As ADODB.Recordset
+Dim qstr As String
+Dim connect_here As Boolean
+
+'connect to db
+    If arch_conn Is Nothing Then
+        Call ado_db.connect_arch_ADO
+        connect_here = True
+    End If
+    Set rst = ado_db.ADO_RST(arch_conn)
+'select sail plans within date
+    qstr = "SELECT TOP 1 * FROM sail_plans;"
+    rst.Open qstr
+    If rst.BOF And rst.EOF Then
+        MsgBox "Er zijn geen gearchiveerde reizen gevonden om weer te geven"
+        rst.Close
+    Else
+        rst.Close
+        Load stats_form
+        stats_form.Show
+    End If
+    
+If connect_here Then Call ado_db.disconnect_arch_ADO
+Set rst = Nothing
 End Sub
 Public Sub stats_form_search_sp_click()
 'the 'search voyages' button is clicked
@@ -794,7 +828,7 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 Dim ctr As MSForms.control
-Dim T As Long
+Dim t As Long
 Dim dt As Date
 
 'setup connection and recordset
@@ -814,7 +848,7 @@ With finalize_form
         .ship_name_lbl.Caption = rst!ship_naam
         .voyage_name_lbl.Caption = rst!route_naam
     'loop tresholds to find logging tresholds
-    T = 10
+    t = 10
     
     Do Until rst.EOF
         If ado_db.get_treshold_logging(rst!treshold_name) Then
@@ -826,11 +860,11 @@ With finalize_form
                 .remarks_frame.Top = .remarks_frame.Top + 15
             'insert label and date / time textboxes
                 Set ctr = .ata_frame.Controls.Add("Forms.Label.1")
-                    ctr.Top = T
+                    ctr.Top = t
                     ctr.Left = 5
                     ctr.Caption = rst!treshold_name
                 Set ctr = .ata_frame.Controls.Add("Forms.TextBox.1")
-                    ctr.Top = T
+                    ctr.Top = t
                     ctr.Left = 100
                     ctr.Width = 50
                     'pre-fill the date textbox with the date of the eta
@@ -839,13 +873,13 @@ With finalize_form
                     ctr.Text = Format(dt, "dd-mm-yy")
                     ctr.Name = rst!treshold_name & "_" & rst!treshold_index & "_date"
                 Set ctr = .ata_frame.Controls.Add("Forms.TextBox.1")
-                    ctr.Top = T
+                    ctr.Top = t
                     ctr.Left = 153
                     ctr.Width = 40
                     ctr.Text = "uu:mm"
                     ctr.Name = rst!treshold_name & "_" & rst!treshold_index & "_time"
                 Set ctr = Nothing
-            T = T + 15
+            t = t + 15
         End If
         rst.MoveNext
     Loop
@@ -1243,7 +1277,7 @@ Dim i As Long
             incr = 25.6
     End If
 
-'store values
+'store values (current window)
     w(0) = rst(0)
     w(1) = rst(1)
     dr = rst(2)
@@ -1279,9 +1313,11 @@ Do Until incr < 0.1
         'test
             Call proj.sail_plan_calculate_raw_windows(id, use_strive_depth:=use_strive_depth, use_astro_tide:=use_astro_tide)
             Call proj.sail_plan_calculate_tidal_window(id, Succes)
-        'check
+        'check if it is in the current tidal window
             If Not (rst(0) >= w(0) And rst(1) <= w(1)) Then
-                Succes = False
+                If Not (Abs(DateDiff("s", rst(0), w(0))) < 1 Or Abs(DateDiff("s", rst(1), w(1))) < 1) Then
+                    Succes = False
+                End If
             End If
         If Succes Then
             dr = dr + incr
@@ -1438,7 +1474,7 @@ Dim ctr As MSForms.control
 Dim frame_top As Double
 Dim frame_left As Double
 
-Dim T As Double
+Dim t As Double
 Dim t_max As Double
 Dim dev_string As String
 Dim jd0 As Double
@@ -1512,13 +1548,13 @@ With deviations_validation_form
             c.Add Array(CStr(rst(2)), CStr(rst(0)), dev_string)
         ss = Split(dev_string, ";")
         'add a label and textbox for each extreme
-            T = 10
+            t = 10
             For i = 0 To UBound(ss) Step 3
                 frame_ctr.Height = frame_ctr.Height + 17
                 'label
                 Set ctr = frame_ctr.Controls.Add("Forms.Label.1")
                     ctr.Left = 5
-                    ctr.Top = T
+                    ctr.Top = t
                     ctr.Caption = Format(DST_GMT.ConvertToLT(CDate(ss(i))), "dd-mm-yy hh:nn") & " (" & ss(i + 1) & ")"
                     ctr.Width = 100
                     ctr.TextAlign = fmTextAlignRight
@@ -1526,26 +1562,26 @@ With deviations_validation_form
                 'textbox
                 Set ctr = frame_ctr.Controls.Add("Forms.TextBox.1")
                     ctr.Left = 105
-                    ctr.Top = T - 3
+                    ctr.Top = t - 3
                     If ss(i + 2) <> vbNullString Then
                         ctr.Text = CLng(Replace(ss(i + 2), ".", ","))
                     End If
                     ctr.Width = 25
                     ctr.Name = "tb_" & i
                 Set ctr = Nothing
-                T = T + 15
+                t = t + 15
             Next i
             'position frames left and right
                 If frame_left = 5 Then
                     'switch to right position
                         frame_left = 140
                     'store maximum t value
-                        If T > t_max Then t_max = T
+                        If t > t_max Then t_max = t
                 Else
                     'switch to left position
                         frame_left = 5
                     'store maxumum t value
-                        If T > t_max Then t_max = T
+                        If t > t_max Then t_max = t
                     'set new frame top value
                         frame_top = frame_top + t_max + 23
                     'adapt height of form and position of buttons
@@ -1557,7 +1593,7 @@ With deviations_validation_form
         Loop
         'make sure the last frame is used to set the height
             If frame_left <> 5 Then
-                If T > t_max Then t_max = T
+                If t > t_max Then t_max = t
                 .Height = .Height + t_max + 10
                 .ok_btn.Top = .ok_btn.Top + t_max + 10
             End If
@@ -1667,7 +1703,7 @@ Public Function deviations_retreive_devs_from_db(jd0 As Double, _
 'will get the deviations from the sqlite db
 Dim qstr As String
 Dim ctr As MSForms.control
-Dim T As Double
+Dim t As Double
 Dim i As Long
 Dim ret As Long
 Dim dt As Date
@@ -1874,11 +1910,14 @@ Dim gl_cur_win_end As Variant
 
 Dim in_current_window As Boolean
 
+Dim current_window_recalc As Boolean
+
 rst.MoveFirst
 Do Until rst.EOF
+    current_window_recalc = False
 TryAgain:
-    'construct eta to calculate
-        eta = ETA0 + rst(4)
+    'construct eta to calculate (in case of current_window_recalc eta is already constructed)
+        If Not current_window_recalc Then eta = ETA0 + rst(4)
     'get first allowable eta on the treshold (will return current eta if it fits into a window) and the window around it
         d = sail_plan_check_treshold_window(windows(i + 1), eta, rst(5), rst(6), rst(0))
     'if no array is returned, there is no window available on or after this eta for this treshold
@@ -1888,7 +1927,7 @@ TryAgain:
         End If
     'check if found eta is bigger (later) than the current eta.
     'If so, the process should start again.
-        If d(1) > eta Then
+        If d(1) > eta Or current_window_recalc Then
             'return the new eta and global window
             sail_plan_loop_check_tresholds = _
                 Array(d(0) - rst(4), _
@@ -1921,13 +1960,16 @@ TryAgain:
             'check if any part of the current window is in the tidal window (both global)
             For ii = 0 To UBound(gl_cur_win_start)
                 If gl_cur_win_start(ii) >= gl_win_start And gl_cur_win_start(ii) <= gl_win_end Or _
-                        gl_cur_win_end(ii) >= gl_win_start And gl_cur_win_end(ii) <= gl_win_end Then
+                        gl_cur_win_end(ii) >= gl_win_start And gl_cur_win_end(ii) <= gl_win_end Or _
+                        gl_win_start >= gl_cur_win_start(ii) And gl_win_start <= gl_cur_win_end(ii) Or _
+                        gl_win_end >= gl_cur_win_start(ii) And gl_win_end <= gl_cur_win_end(ii) Then
                     in_current_window = True
                     Exit For
                 End If
             Next ii
             If Not in_current_window Then
-                ETA0 = gl_win_end
+                eta = gl_win_end + rst(4)
+                current_window_recalc = True
                 GoTo TryAgain
             End If
         End If
@@ -1989,7 +2031,7 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim connect_here As Boolean
 Dim ctr As MSForms.control
-Dim T As Long
+Dim t As Long
 #If Win64 Then
 Dim handl As LongPtr
 #Else
@@ -2042,7 +2084,7 @@ sail_plan_edit_form.window_after_tb.Text = "00:00"
 qstr = "SELECT naam, id FROM speeds;"
 rst.Open qstr
 With sail_plan_edit_form.speedframe
-    T = 5
+    t = 5
     Do Until rst.EOF
         If rst(0) <> vbNullString Then
             'add speed to speed combobox
@@ -2054,19 +2096,19 @@ With sail_plan_edit_form.speedframe
             Set ctr = .Controls.Add("Forms.Label.1")
             ctr.Caption = rst(0)
             ctr.Left = 5
-            ctr.Top = T + 5
+            ctr.Top = t + 5
             ctr.Width = 40
             Set ctr = .Controls.Add("Forms.TextBox.1")
             ctr.Left = 45
-            ctr.Top = T
+            ctr.Top = t
             ctr.Width = 30
             ctr.Name = "speed_" & rst(1)
             Set ctr = Nothing
-            T = T + 15
+            t = t + 15
         End If
         rst.MoveNext
     Loop
-    .Height = T + 15
+    .Height = t + 15
 End With
 rst.Close
 
@@ -4416,7 +4458,7 @@ Dim i As Long
 Dim connect_here As Boolean
 Dim lbl As MSForms.Label
 Dim tb As MSForms.TextBox
-Dim T As Long
+Dim t As Long
 
 Load ship_types_edit_form
 
@@ -4431,21 +4473,21 @@ qstr = "SELECT * FROM speeds;"
 rst.Open qstr
 
 With ship_types_edit_form.dataframe.Controls
-    T = 60
+    t = 60
     Do Until rst.EOF
         If Not IsNull(rst!naam) Then
             Set lbl = .Add("Forms.Label.1")
-            lbl.Top = T
+            lbl.Top = t
             lbl.Left = 18
             lbl.Width = 40
             lbl.Caption = rst!naam
             Set lbl = Nothing
             Set tb = .Add("Forms.TextBox.1")
-            tb.Top = T
+            tb.Top = t
             tb.Left = 60
             tb.Name = "sp_tb_" & rst!id
             Set tb = Nothing
-            T = T + 15
+            t = t + 15
         End If
         rst.MoveNext
     Loop

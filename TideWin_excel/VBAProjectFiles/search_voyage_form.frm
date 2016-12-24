@@ -285,7 +285,3 @@ Me.results_lb.ColumnCount = 9
 Me.results_lb.ColumnWidths = "0;50;100;60;40;40;40;80;40"
 
 End Sub
-Private Sub UserForm_Click()
-
-End Sub
-

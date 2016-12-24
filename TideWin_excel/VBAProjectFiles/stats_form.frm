@@ -54,23 +54,23 @@ Private Sub create_datepicker()
 'multipage behaves strangely if global position is calculated. Probably the
 'tabstrip that is not properly calculated.
 Set cal = New cCalendar
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim ctr As MSForms.control
 Set ctr = caller_ctr
 On Error Resume Next
     Do Until ctr.parent.Name = Me.Name
-        T = T + ctr.Top
+        t = t + ctr.Top
         L = L + ctr.Left
         Set ctr = ctr.parent
     Loop
 On Error GoTo 0
 'add 15 to compensate for the tabstrip (see above)
-T = T + caller_ctr.Height + 15
+t = t + caller_ctr.Height + 15
 
 With Me.datepicker_frame
     .Visible = True
-    .Top = T
+    .Top = t
     .Left = L
     .ZOrder (0)
 End With
@@ -128,11 +128,6 @@ With lb
     Next j
 End With
 End Sub
-
-Private Sub Frame1_Click()
-
-End Sub
-
 
 Private Sub ok_btn_Click()
 Call proj.stats_form_ok_click

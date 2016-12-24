@@ -316,7 +316,7 @@ Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim sh As Worksheet
 Dim rw As Long
-Dim R As Range
+Dim r As Range
 Dim connect_here As Boolean
 
 If Drawing Then Exit Sub
@@ -340,15 +340,15 @@ rw = Selection.Cells(1, 1).Row
     sh.Cells(rw, 5).Activate
 
 'highlight selected sail_plan with borders
-    Set R = sh.Range(sh.Cells(3, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 6))
-    R.Borders.LineStyle = xlNone
+    Set r = sh.Range(sh.Cells(3, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 6))
+    r.Borders.LineStyle = xlNone
     
-    Set R = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6))
-    R.Borders.LineStyle = xlContinuous
-    R.Borders.Weight = xlMedium
-    R.Borders(xlInsideVertical).LineStyle = xlNone
-    R.Borders(xlInsideHorizontal).LineStyle = xlNone
-    Set R = Nothing
+    Set r = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 6))
+    r.Borders.LineStyle = xlContinuous
+    r.Borders.Weight = xlMedium
+    r.Borders(xlInsideVertical).LineStyle = xlNone
+    r.Borders(xlInsideHorizontal).LineStyle = xlNone
+    Set r = Nothing
 
 'connect db
     If arch_conn Is Nothing Then
@@ -588,7 +588,7 @@ With sh
         For i = 1 To devs.Count
             dev_name = ado_db.get_table_name_from_id( _
                                     id:=CLng(devs(i)), _
-                                    T:="deviations")
+                                    t:="deviations")
             .Cells(rw, 9 + (i - 1) * 2) = dev_name & ":"
             dev_string = deviations_retreive_devs_from_db( _
                     jd0:=jd0, _
@@ -782,12 +782,12 @@ Private Sub DrawWindow(draw_bottom As Double, _
                         ByRef Draw As Boolean, _
                         Optional dark As Boolean)
 'sub to draw a shape
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim h As Double
 Dim w As Double
 Dim shp As Shape
-T = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
@@ -802,7 +802,7 @@ If h = 0 Then Exit Sub
 
 Draw = True
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, T, w, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, t, w, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then
@@ -822,14 +822,14 @@ Private Sub DrawLabel(draw_bottom As Double, _
                         end_frame As Date, _
                         distance As Double, _
                         Text As String)
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim shp As Shape
 Dim Pi As Double
 
 Pi = 4 * Atn(1)
 
-T = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -842,7 +842,7 @@ With shp
     .TextFrame2.TextRange.Characters.Text = Text
     .TextFrame.AutoSize = True
     'put center on top of colom:
-    .Top = T - .Height * 0.5
+    .Top = t - .Height * 0.5
     .Left = L - .Width * 0.5
     'rotate:
     .Rotation = -50
@@ -958,7 +958,7 @@ rst.MoveFirst
 End Sub
 Private Sub DrawTimeLabel(draw_bottom As Double, _
                             start_frame As Date, _
-                            T As Date, _
+                            t As Date, _
                             Text As String, _
                             Optional AlignTop As Boolean = False)
 
@@ -966,7 +966,7 @@ Dim Tp As Double
 Dim L As Double
 Dim shp As Shape
 
-Tp = draw_bottom - (T - start_frame) * SAIL_PLAN_DAY_LENGTH
+Tp = draw_bottom - (t - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -976,10 +976,10 @@ With shp
     .TextFrame2.TextRange.Characters.font.Size = 8
     If Text = vbNullString Then
         .TextFrame2.TextRange.Characters.Text = _
-            Format(DST_GMT.ConvertToLT(T), "dd/mm hh:mm")
+            Format(DST_GMT.ConvertToLT(t), "dd/mm hh:mm")
     Else
         .TextFrame2.TextRange.Characters.Text = _
-            Text & ": " & Format(DST_GMT.ConvertToLT(T), "hh:mm")
+            Text & ": " & Format(DST_GMT.ConvertToLT(t), "hh:mm")
     End If
     .TextFrame.AutoSize = True
     If AlignTop Then

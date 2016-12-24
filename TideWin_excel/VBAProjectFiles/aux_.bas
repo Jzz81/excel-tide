@@ -103,7 +103,7 @@ Public Function sort_collection_of_strings(colStrings As Collection, _
         
         ' insert string
         If Index <> 0 Then
-            colResult.Add Item:=inString, After:=Index
+            colResult.Add Item:=inString, after:=Index
         Else
             If colResult.Count > 0 Then
                 colResult.Add Item:=inString, Before:=1

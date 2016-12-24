@@ -86,17 +86,17 @@ caller_ctr.BackColor = -2147483643
 End Sub
 Private Sub create_datepicker()
 Set cal = New cCalendar
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim ctr As MSForms.control
 Set ctr = caller_ctr
 
 'calculate global position of the datepicker
 '(flush left and below the control)
-    T = ctr.Height
+    t = ctr.Height
     On Error Resume Next
         Do While True
-            T = T + ctr.Top
+            t = t + ctr.Top
             L = L + ctr.Left
             If ctr.parent.Name = Me.Name Then Exit Do
             Set ctr = ctr.parent
@@ -106,7 +106,7 @@ Set ctr = caller_ctr
 'position the container frame
     With Me.datepicker_frame
         .Visible = True
-        .Top = T
+        .Top = t
         .Left = L
         .ZOrder (0)
     End With
@@ -132,70 +132,66 @@ cancelflag = True
 Me.Hide
 End Sub
 
-Private Sub datepicker_frame_Click()
-
-End Sub
-
 Private Sub dr_dbl_ob_Click()
 'double draught
-Dim T As Long
+Dim t As Long
 'frame visible
-T = 66
+t = 66
 Me.draught_single_frame.Visible = False
 
 With Me.draught_double_frame
     .Visible = True
-    .Top = T
+    .Top = t
     .Left = 12
-    T = T + .Height + 3
+    t = t + .Height + 3
 End With
-Me.Label3.Top = T + 6
-Me.TextBox3.Top = T
+Me.Label3.Top = t + 6
+Me.TextBox3.Top = t
 
-T = T + 18
-Me.Label4.Top = T + 6
-Me.TextBox4.Top = T
+t = t + 18
+Me.Label4.Top = t + 6
+Me.TextBox4.Top = t
 
-T = T + 18
-Me.Label5.Top = T + 6
-Me.TextBox5.Top = T
+t = t + 18
+Me.Label5.Top = t + 6
+Me.TextBox5.Top = t
 
-T = T + 18
-Me.Label6.Top = T + 6
-Me.ship_types_cb.Top = T
+t = t + 18
+Me.Label6.Top = t + 6
+Me.ship_types_cb.Top = t
 
 End Sub
 
 Private Sub dr_single_ob_Click()
 'single draught
-Dim T As Long
+Dim t As Long
 'frame visible
-T = 66
+t = 66
 Me.draught_double_frame.Visible = False
 
 With Me.draught_single_frame
     .Visible = True
-    .Top = T
+    .Top = t
     .Left = 12
-    T = T + .Height + 3
+    t = t + .Height + 3
 End With
-Me.Label3.Top = T
-Me.TextBox3.Top = T
+Me.Label3.Top = t
+Me.TextBox3.Top = t
 
-Me.Label3.Top = T + 6
-Me.TextBox3.Top = T
+Me.Label3.Top = t + 6
+Me.TextBox3.Top = t
 
-T = T + 18
-Me.Label4.Top = T + 6
-Me.TextBox4.Top = T
+t = t + 18
+Me.Label4.Top = t + 6
+Me.TextBox4.Top = t
 
-T = T + 18
-Me.Label5.Top = T + 6
-Me.TextBox5.Top = T
+t = t + 18
+Me.Label5.Top = t + 6
+Me.TextBox5.Top = t
 
-T = T + 18
-Me.Label6.Top = T + 6
-Me.ship_types_cb.Top = T
+t = t + 18
+Me.Label6.Top = t + 6
+Me.ship_types_cb.Top = t
 End Sub
 
 Private Sub eta_date_tb_Enter()

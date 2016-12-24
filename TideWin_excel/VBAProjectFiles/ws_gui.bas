@@ -118,7 +118,7 @@ Dim has_restrictions As Boolean
 Dim i As Long
 Dim wd_R As Object
 
-Dim R As Range
+Dim r As Range
 
 'check if a sail plan has been selected
     If Not IsNumeric(Blad1.Cells(Selection.Row, 1)) Then Exit Sub
@@ -170,9 +170,9 @@ wd_R.InsertAfter "Tijd-weg diagram"
 wd_R.Collapse Direction:=0 '0 = wdCollapseEnd
 
 'get drawing range
-    Set R = find_drawing_range
-    R.Cells.Clear
-    R.CopyPicture xlScreen, xlPicture
+    Set r = find_drawing_range
+    r.Cells.Clear
+    r.CopyPicture xlScreen, xlPicture
 'paste picture into doc
     wd_R.Paste
 
@@ -295,8 +295,8 @@ Private Function find_drawing_range() As Range
 'will find the range that covers the drawing
 Dim shp As Shape
 Dim L As Double
-Dim T As Double
-Dim R As Double
+Dim t As Double
+Dim r As Double
 Dim B As Double
 Dim rw(0 To 1) As Long
 Dim clm(0 To 1) As Long
@@ -306,16 +306,16 @@ If ActiveSheet.Shapes.Count = 0 Then Exit Function
 
 With ActiveSheet.Shapes(1)
     L = .Left
-    R = .Left + .Width
-    T = .Top
+    r = .Left + .Width
+    t = .Top
     B = .Top + .Height
 End With
 
 For Each shp In ActiveSheet.Shapes
     With shp
         If .Left < L Then L = .Left
-        If .Left + .Width > R Then R = .Left + .Width
-        If .Top < T Then T = .Top
+        If .Left + .Width > r Then r = .Left + .Width
+        If .Top < t Then t = .Top
         If .Top + .Height > B Then B = .Top + .Height
     End With
 Next shp
@@ -324,7 +324,7 @@ With ActiveSheet
     'find row extreme values
         i = 1
         Do Until rw(0) > 0 And rw(1) > 0
-            If .Cells(i, 1).Top > T And rw(0) = 0 Then
+            If .Cells(i, 1).Top > t And rw(0) = 0 Then
                 rw(0) = i - 1
                 If rw(0) > 1 Then rw(0) = 1
             End If
@@ -340,7 +340,7 @@ With ActiveSheet
                 clm(0) = i - 1
                 If clm(0) < 1 Then clm(0) = 1
             End If
-            If .Cells(1, i).Left > R Then
+            If .Cells(1, i).Left > r Then
                 clm(1) = i
             End If
             i = i + 1
@@ -922,14 +922,14 @@ Public Sub display_sail_plan()
 Dim sh As Worksheet
 Dim rw As Long
 Dim clm As Long
-Dim R As Range
+Dim r As Range
 Dim connect_here As Boolean
 Dim id As Long
 Dim draught As Double
 Dim rst As ADODB.Recordset
 Dim qstr As String
 Dim s As String
-Dim T As Long
+Dim t As Long
 
 If Drawing Then Exit Sub
 Application.ScreenUpdating = False
@@ -962,19 +962,19 @@ clm = Selection.Cells(1, 1).Column
 
 'highlight selected sail_plan with borders
     'remove borders for all
-        Set R = sh.Range(sh.Cells(4, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 9))
-        R.Borders.LineStyle = xlNone
+        Set r = sh.Range(sh.Cells(4, 1), sh.Cells(sh.Cells.SpecialCells(xlLastCell).Row, 9))
+        r.Borders.LineStyle = xlNone
     'remove highlight color
         Call restore_line_colors
         
     'set borders
-        Set R = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 9))
-        R.Borders.LineStyle = xlContinuous
-        R.Borders.Weight = xlMedium
-        R.Borders(xlInsideVertical).LineStyle = xlNone
-        R.Borders(xlInsideHorizontal).LineStyle = xlNone
+        Set r = sh.Range(sh.Cells(rw, 1), sh.Cells(rw, 9))
+        r.Borders.LineStyle = xlContinuous
+        r.Borders.Weight = xlMedium
+        r.Borders(xlInsideVertical).LineStyle = xlNone
+        r.Borders(xlInsideHorizontal).LineStyle = xlNone
     'set highlight color
-        R.Interior.Color = 49407
+        r.Interior.Color = 49407
 
 'connect db
     If sp_conn Is Nothing Then
@@ -1243,14 +1243,14 @@ With sh
     For i = 1 To devs.Count
         dev_name = ado_db.get_table_name_from_id( _
                                 id:=CLng(devs(i)), _
-                                T:="deviations")
+                                t:="deviations")
         .Cells(rw, clm + (i - 1) * 2) = dev_name & ":"
         dev_string = deviations_retreive_devs_from_db( _
                 jd0:=jd0, _
                 jd1:=jd1, _
                 tidal_data_point:=ado_db.get_table_name_from_id( _
                                 id:=CLng(devs(i)), _
-                                T:="deviations", _
+                                t:="deviations", _
                                 column_name:="tidal_data_point"))
         ss = Split(dev_string, ";")
         rw_add = 1
@@ -1380,13 +1380,13 @@ shp.Line.Transparency = 0.4
 Set shp = Nothing
 
 End Sub
-Private Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, T As Date, Text As String, Optional AlignTop As Boolean = False)
+Private Sub DrawTimeLabel(draw_bottom As Double, start_frame As Date, t As Date, Text As String, Optional AlignTop As Boolean = False)
 
 Dim Tp As Double
 Dim L As Double
 Dim shp As Shape
 
-Tp = draw_bottom - (T - start_frame) * SAIL_PLAN_DAY_LENGTH
+Tp = draw_bottom - (t - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -1395,9 +1395,9 @@ With shp
     .Placement = xlFreeFloating
     .TextFrame2.TextRange.Characters.font.Size = 8
     If Text = vbNullString Then
-        .TextFrame2.TextRange.Characters.Text = Format(DST_GMT.ConvertToLT(T), "dd/mm hh:mm")
+        .TextFrame2.TextRange.Characters.Text = Format(DST_GMT.ConvertToLT(t), "dd/mm hh:mm")
     Else
-        .TextFrame2.TextRange.Characters.Text = Text & ": " & Format(DST_GMT.ConvertToLT(T), "hh:mm")
+        .TextFrame2.TextRange.Characters.Text = Text & ": " & Format(DST_GMT.ConvertToLT(t), "hh:mm")
     End If
     .TextFrame.AutoSize = True
     If AlignTop Then
@@ -1423,7 +1423,7 @@ Dim i As Long
 Dim last_end_of_window As Date
 Dim new_draught As Double
 
-Dim T As Long
+Dim t As Long
 
 Set sh = ActiveSheet
 
@@ -1534,12 +1534,12 @@ Private Sub DrawWindow(draw_bottom As Double, _
                         green As Boolean, _
                         Optional dark As Boolean)
 'sub to draw a shape
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim h As Double
 Dim w As Double
 Dim shp As Shape
-T = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_time - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 h = Round((end_time - start_time) * SAIL_PLAN_DAY_LENGTH, 2)
 
@@ -1552,7 +1552,7 @@ End If
 
 If h <= 0 Then Exit Sub
 
-Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, T, w, h)
+Set shp = ActiveSheet.Shapes.AddShape(msoShapeRectangle, L, t, w, h)
 shp.Placement = xlFreeFloating
 shp.Line.Visible = msoFalse
 If green Then
@@ -1573,14 +1573,14 @@ Private Sub DrawLabel(draw_bottom As Double, _
                         end_frame As Date, _
                         distance As Double, _
                         Text As String)
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim shp As Shape
 Dim Pi As Double
 
 Pi = 4 * Atn(1)
 
-T = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
+t = draw_bottom - (end_frame - start_frame) * SAIL_PLAN_DAY_LENGTH
 L = distance * SAIL_PLAN_MILE_LENGTH + SAIL_PLAN_GRAPH_DRAW_LEFT
 
 Set shp = ActiveSheet.Shapes.AddTextbox(msoTextOrientationHorizontal, 90.75, 170.25, 51, 24.75)
@@ -1593,7 +1593,7 @@ With shp
     .TextFrame2.TextRange.Characters.Text = Text
     .TextFrame.AutoSize = True
     'put center on top of colom:
-    .Top = T - .Height * 0.5
+    .Top = t - .Height * 0.5
     .Left = L - .Width * 0.5
     'rotate:
     .Rotation = -50

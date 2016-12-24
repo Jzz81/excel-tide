@@ -193,7 +193,8 @@ qstr = "SELECT * FROM sail_plans WHERE route_naam Is Null " _
     & "OR ship_boa Is Null " _
     & "OR ship_draught Is Null " _
     & "OR local_eta Is Null " _
-    & "OR treshold_name Is Null;"
+    & "OR treshold_name Is Null " _
+    & "OR (rta_treshold = TRUE AND rta Is Null);"
 
 rst.Open qstr
 
@@ -279,6 +280,10 @@ Do Until rst.EOF
             rst!treshold_name = ado_db.get_table_name_from_id(rst!treshold_id, "tresholds")
         End If
     End If
+    'repair empty rta value (delete rta value)
+    If rst!rta_treshold = True And IsNull(rst!rta) Then
+        rst!rta_treshold = False
+    End If
     rst.MoveNext
 Loop
 rst.Close
@@ -321,6 +326,7 @@ Else
     repair_sail_plan = True
 End If
     
+    
 'query for empty draught
 qstr = "SELECT * FROM sail_plans WHERE ship_draught Is Null AND id = '" & sail_plan_id & "';"
 rst.Open qstr
@@ -355,7 +361,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function check_table_name_exists(ByVal n As String, ByVal T As String) As Boolean
+Public Function check_table_name_exists(ByVal n As String, ByVal t As String) As Boolean
 'check if the name n exists in the database return true if so
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -366,7 +372,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT * FROM " & T & " WHERE naam = '" & n & "';"
+qstr = "SELECT * FROM " & t & " WHERE naam = '" & n & "';"
 rst.Open qstr
 
 If rst.RecordCount > 0 Then check_table_name_exists = True
@@ -421,7 +427,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function get_table_id_from_name(ByVal n As String, ByVal T As String) As Long
+Public Function get_table_id_from_name(ByVal n As String, ByVal t As String) As Long
 'get id from table t based on the name n
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -432,7 +438,7 @@ If sp_conn Is Nothing Then
     connect_here = True
 End If
 Set rst = ado_db.ADO_RST
-qstr = "SELECT id FROM " & T & " WHERE naam = '" & n & "';"
+qstr = "SELECT id FROM " & t & " WHERE naam = '" & n & "';"
 rst.Open qstr
 
 get_table_id_from_name = rst(0)
@@ -443,7 +449,7 @@ Set rst = Nothing
 If connect_here Then Call ado_db.disconnect_sp_ADO
 
 End Function
-Public Function get_table_name_from_id(ByVal id As Long, ByVal T As String, Optional column_name As String = vbNullString) As String
+Public Function get_table_name_from_id(ByVal id As Long, ByVal t As String, Optional column_name As String = vbNullString) As String
 'get column value ('naam' as default) for id 'id' in table 'T'
 Dim rst As ADODB.Recordset
 Dim qstr As String
@@ -460,7 +466,7 @@ Dim connect_here As Boolean
     If column_name = vbNullString Then column_name = "naam"
 
 'construct query and open recordset
-    qstr = "SELECT " & column_name & " FROM " & T & " WHERE id = " & id & ";"
+    qstr = "SELECT " & column_name & " FROM " & t & " WHERE id = " & id & ";"
     rst.Open qstr
 
 'return value

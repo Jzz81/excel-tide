@@ -44,6 +44,3 @@ Private Sub path_btn_tidal_data_Click()
     Me.path_tb_tidal_data.Value = aux_.get_single_file("Selecteer de database")
 End Sub
 
-Private Sub UserForm_Click()
-
-End Sub

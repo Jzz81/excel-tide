@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} make_lists_form 
    Caption         =   "Lijsten maken"
-   ClientHeight    =   6720
+   ClientHeight    =   7695
    ClientLeft      =   45
    ClientTop       =   375
-   ClientWidth     =   7710
+   ClientWidth     =   7605
    OleObjectBlob   =   "make_lists_form.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -74,16 +74,16 @@ Private Sub destroy_datepicker()
 End Sub
 Private Sub create_datepicker()
 Set cal = New cCalendar
-Dim T As Double
+Dim t As Double
 Dim L As Double
 Dim ctr As MSForms.control
 Set ctr = caller_ctr
 
-T = ctr.Height
+t = ctr.Height
 
 On Error Resume Next
     Do While True
-        T = T + ctr.Top
+        t = t + ctr.Top
         L = L + ctr.Left
         If ctr.parent.Name = Me.Name Then Exit Do
         Set ctr = ctr.parent
@@ -92,7 +92,7 @@ On Error GoTo 0
 
 With Me.datepicker_frame
     .Visible = True
-    .Top = T
+    .Top = t
     .Left = L
     .ZOrder (0)
 End With
@@ -126,20 +126,38 @@ Private Sub date_1_tb_Exit(ByVal Cancel As MSForms.ReturnBoolean)
 End Sub
 
 
-Private Sub Frame3_Click()
-
-End Sub
-
 Private Sub ok_btn_Click()
 Call make_lists.lists_form_ok_btn_click
 End Sub
 
+Private Sub rta_ob_Click()
+
+With Me.rta_frame
+    .Visible = True
+    .Left = 6
+End With
+Me.tide_frame.Visible = False
+
+End Sub
+
+Private Sub tide_ob_Click()
+With Me.tide_frame
+    .Visible = True
+    .Left = 6
+End With
+Me.rta_frame.Visible = False
+
+End Sub
+
 Private Sub type_maxT_ob_Click()
 Call set_type("maxT")
+Me.rta_ob = True
+Me.tide_ob.Enabled = False
 End Sub
 
 Private Sub type_window_ob_Click()
 Call set_type("windows")
+Me.tide_ob.Enabled = True
 End Sub
 
 Private Sub set_type(tpe As String)
@@ -167,5 +185,16 @@ Me.hw_lw_cbb.AddItem "laagwater"
 Me.hw_lw_cbb.Value = "hoogwater"
 
 Me.datepicker_frame.Visible = False
+
+Me.rta_ob = True
+Me.tide_ob.Enabled = False
+
+Me.current_before_cb.AddItem "voor"
+Me.current_before_cb.AddItem "na"
+Me.current_before_cb.Value = "voor"
+
+Me.current_after_cb.AddItem "voor"
+Me.current_after_cb.AddItem "na"
+Me.current_after_cb.Value = "na"
 
 End Sub
